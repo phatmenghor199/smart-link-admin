@@ -23,7 +23,7 @@ export const loginUser = createAsyncThunk(
       // Mock response
       const user: User = {
         id: "1",
-        name: "John Doe",
+        name: "John Doeee",
         email: credentials.email,
         role: "admin",
         avatar: "/avatars/john-doe.png",

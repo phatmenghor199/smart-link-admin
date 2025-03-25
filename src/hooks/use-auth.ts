@@ -24,10 +24,10 @@ export const useAuth = () => {
   useEffect(() => {
     const token = getCookie("auth-token");
 
+    console.log("## ====token", token);
+
     // Check if there's a token but user isn't authenticated yet
     if (token && !isAuthenticated) {
-      // In a real app, you would make an API call to validate the token and get user data
-      // For now, we'll just simulate this with mock data
       dispatch(
         setCredentials({
           user: {
@@ -48,8 +48,10 @@ export const useAuth = () => {
   const login = async (credentials: LoginCredentials) => {
     try {
       const resultAction = await dispatch(loginUser(credentials));
+
+      console.log("## ====resultAction", resultAction);
       if (loginUser.fulfilled.match(resultAction)) {
-        router.push("/dashboard");
+        // router.push("/dashboard");
       }
     } catch (error) {
       console.error("Login failed:", error);

@@ -21,7 +21,7 @@ export default function AuthLayout({
 
   return (
     <div className="relative min-h-screen bg-background">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4  z-50">
         <ThemeToggle />
       </div>
       <div className="absolute h-full w-full bg-grid-small-black/[0.2] dark:bg-grid-small-white/[0.2]" />

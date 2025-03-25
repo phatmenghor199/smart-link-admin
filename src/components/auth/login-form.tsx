@@ -34,6 +34,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
+
   const { login, isLoading, error, clearError } = useAuth();
 
   const {
