@@ -51,7 +51,7 @@ export const useAuth = () => {
 
       console.log("## ====resultAction", resultAction);
       if (loginUser.fulfilled.match(resultAction)) {
-        // router.push("/dashboard");
+        router.push("/dashboard");
       }
     } catch (error) {
       console.error("Login failed:", error);
