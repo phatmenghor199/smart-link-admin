@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "@/store";
-import { fetchPlans } from "@/store/features/plan-slice";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,21 +12,37 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { fetchAllPlans } from "@/services/plans.service";
+import { Plan } from "@/types";
+import { toast } from "sonner";
 
 export default function PlansPage() {
-  const dispatch = useDispatch<AppDispatch>();
-  const { plans, isLoading } = useSelector((state: RootState) => state.plans);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    dispatch(fetchPlans());
-  }, [dispatch]);
+    const loadPlans = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedPlans = await fetchAllPlans();
+        setPlans(fetchedPlans);
+      } catch (error) {
+        console.error("Failed to fetch plans:", error);
+        toast.error("Failed to load subscription plans");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPlans();
+  }, []);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-current border-t-transparent text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }

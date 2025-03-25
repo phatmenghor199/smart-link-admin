@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -12,19 +12,101 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Overview } from "@/components/dashboard/overview";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { motion } from "framer-motion";
-import { Users, CreditCard, LineChart, Activity } from "lucide-react";
-import { fetchUsers } from "@/store/features/user-slice";
-import { fetchPlans } from "@/store/features/plan-slice";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store";
+import { Users, CreditCard, LineChart, Activity, Loader2 } from "lucide-react";
+import { fetchAllUsers } from "@/services/users.service";
+import { fetchAllPlans } from "@/services/plans.service";
+import { toast } from "sonner";
+import { User, Plan } from "@/types";
+
+interface DashboardMetrics {
+  totalUsers: number;
+  totalRevenue: number;
+  activePlans: number;
+  activeSessions: number;
+  userGrowth: number;
+  revenueGrowth: number;
+  planGrowth: number;
+  sessionGrowth: number;
+}
 
 export default function DashboardPage() {
-  const dispatch = useDispatch<AppDispatch>();
+  const [users, setUsers] = useState<User[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    totalUsers: 0,
+    totalRevenue: 0,
+    activePlans: 0,
+    activeSessions: 0,
+    userGrowth: 0,
+    revenueGrowth: 0,
+    planGrowth: 0,
+    sessionGrowth: 0,
+  });
 
   useEffect(() => {
-    dispatch(fetchUsers());
-    dispatch(fetchPlans());
-  }, [dispatch]);
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+
+      try {
+        // Fetch users and plans in parallel
+        const [fetchedUsers, fetchedPlans] = await Promise.all([
+          fetchAllUsers(),
+          fetchAllPlans(),
+        ]);
+
+        setUsers(fetchedUsers);
+        setPlans(fetchedPlans);
+
+        // Calculate metrics
+        calculateMetrics(fetchedUsers, fetchedPlans);
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+        toast.error("Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // Calculate dashboard metrics from the fetched data
+  const calculateMetrics = (users: User[], plans: Plan[]) => {
+    // In a real app, these would be calculated from actual data
+    // For demo purposes, we'll use the length of arrays and some mock calculations
+
+    const activeUsers = users.filter((user) => user.status === "active");
+
+    // Mock revenue calculation - in reality would come from orders/subscriptions
+    const mockRevenuePerUser = 34.27;
+    const totalRevenue = activeUsers.length * mockRevenuePerUser;
+
+    // Mock active plans - in reality would be from subscriptions table
+    const activePlans = Math.round(activeUsers.length * 0.75);
+
+    // Mock sessions - in reality would come from analytics data
+    const activeSessions = Math.round(activeUsers.length * 0.43);
+
+    setMetrics({
+      totalUsers: users.length,
+      totalRevenue: totalRevenue,
+      activePlans: activePlans,
+      activeSessions: activeSessions,
+      userGrowth: 12, // Mock growth percentages
+      revenueGrowth: 20.1,
+      planGrowth: 7.4,
+      sessionGrowth: 5.4,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -39,9 +121,11 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,324</div>
+            <div className="text-2xl font-bold">
+              {metrics.totalUsers.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              +{metrics.userGrowth}% from last month
             </p>
           </CardContent>
         </Card>
@@ -51,9 +135,15 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
+            <div className="text-2xl font-bold">
+              $
+              {metrics.totalRevenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              +{metrics.revenueGrowth}% from last month
             </p>
           </CardContent>
         </Card>
@@ -63,9 +153,11 @@ export default function DashboardPage() {
             <LineChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">986</div>
+            <div className="text-2xl font-bold">
+              {metrics.activePlans.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +7.4% from last month
+              +{metrics.planGrowth}% from last month
             </p>
           </CardContent>
         </Card>
@@ -77,9 +169,11 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">573</div>
+            <div className="text-2xl font-bold">
+              {metrics.activeSessions.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +5.4% from last month
+              +{metrics.sessionGrowth}% from last month
             </p>
           </CardContent>
         </Card>

@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
+import React from "react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 export default function AuthLayout({
@@ -10,15 +8,6 @@ export default function AuthLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { isAuthenticated } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, router]);
-
   return (
     <div className="relative min-h-screen bg-background">
       <div className="absolute top-4 right-4  z-50">

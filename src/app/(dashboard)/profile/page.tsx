@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Card,
@@ -16,43 +16,122 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/use-auth";
-import { Loader2, User, Key, Shield } from "lucide-react";
+import { Loader2, User as UserIcon, Key, Shield } from "lucide-react";
+import { getCurrentUser } from "@/services/auth.service";
+import { User } from "@/types";
+
+interface ProfileData {
+  name: string;
+  email: string;
+  bio: string;
+}
 
 export default function ProfilePage() {
-  const { user } = useAuth();
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [profileData, setProfileData] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData>({
+    name: "",
+    email: "",
     bio: "Product designer at Acme Inc. I love creating beautiful and functional user interfaces.",
   });
 
+  // Load current user data
+  useEffect(() => {
+    const loadUser = () => {
+      setIsLoading(true);
+      try {
+        const currentUser = getCurrentUser();
+        setUser(currentUser);
+
+        if (currentUser) {
+          setProfileData({
+            name: currentUser.name || "",
+            email: currentUser.email || "",
+            bio: "Product designer at Acme Inc. I love creating beautiful and functional user interfaces.",
+          });
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
+
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUpdating(true);
+    setIsUpdatingProfile(true);
 
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    setIsUpdating(false);
-    toast.success("Profile Updated", {
-      description: "Your profile has been updated successfully.",
-    });
+      // Update user in local storage (in a real app, this would be an API call)
+      if (user) {
+        const updatedUser = {
+          ...user,
+          name: profileData.name,
+          email: profileData.email,
+        };
+
+        // In a real app, you would update the user via an API
+        // For now, we just update the local state
+        setUser(updatedUser);
+
+        // For demo purposes, we'll store in localStorage
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
+        toast.success("Profile Updated", {
+          description: "Your profile has been updated successfully.",
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to update profile", {
+        description: "An error occurred. Please try again.",
+      });
+      console.error("Error updating profile:", error);
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUpdating(true);
+    setIsUpdatingPassword(true);
 
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    setIsUpdating(false);
-    toast.success("Password Updated", {
-      description: "Your password has been updated successfully.",
-    });
+      // In a real app, this would validate the current password and update it
+      toast.success("Password Updated", {
+        description: "Your password has been updated successfully.",
+      });
+
+      // Reset form (would use a form library in real app)
+      const form = e.target as HTMLFormElement;
+      form.reset();
+    } catch (error) {
+      toast.error("Failed to update password", {
+        description: "An error occurred. Please try again.",
+      });
+      console.error("Error updating password:", error);
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -78,7 +157,9 @@ export default function ProfilePage() {
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Joined on{" "}
-                  {new Date(user?.createdAt || "").toLocaleDateString()}
+                  {user?.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString()
+                    : "Unknown date"}
                 </p>
                 <Button variant="outline" className="mt-4">
                   Change Avatar
@@ -92,7 +173,7 @@ export default function ProfilePage() {
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-8">
               <TabsTrigger value="profile" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
+                <UserIcon className="h-4 w-4" />
                 <span>Profile</span>
               </TabsTrigger>
               <TabsTrigger value="password" className="flex items-center gap-2">
@@ -162,8 +243,8 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="mt-6">
-                      <Button type="submit" disabled={isUpdating}>
-                        {isUpdating ? (
+                      <Button type="submit" disabled={isUpdatingProfile}>
+                        {isUpdatingProfile ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Updating...
@@ -195,6 +276,7 @@ export default function ProfilePage() {
                           id="current-password"
                           type="password"
                           placeholder="••••••••"
+                          required
                         />
                       </div>
 
@@ -204,6 +286,7 @@ export default function ProfilePage() {
                           id="new-password"
                           type="password"
                           placeholder="••••••••"
+                          required
                         />
                       </div>
 
@@ -215,13 +298,14 @@ export default function ProfilePage() {
                           id="confirm-password"
                           type="password"
                           placeholder="••••••••"
+                          required
                         />
                       </div>
                     </div>
 
                     <div className="mt-6">
-                      <Button type="submit" disabled={isUpdating}>
-                        {isUpdating ? (
+                      <Button type="submit" disabled={isUpdatingPassword}>
+                        {isUpdatingPassword ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Updating...

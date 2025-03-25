@@ -14,10 +14,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { useAuth } from "@/hooks/use-auth";
+import { User } from "@/types";
 
-export function Header() {
-  const { user, logout } = useAuth();
+interface HeaderProps {
+  user: User | null;
+  onLogout: () => void;
+}
+
+export function Header({ user, onLogout }: HeaderProps) {
   const pathname = usePathname();
 
   // Get page title from current path
@@ -49,9 +53,11 @@ export function Header() {
                   <AvatarImage src={user?.avatar} alt={user?.name} />
                   <AvatarFallback className="text-xs">
                     {user?.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
+                      ? user.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                      : "U"}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -59,8 +65,10 @@ export function Header() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  <p className="text-sm font-medium">{user?.name || "User"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {user?.email || "user@example.com"}
+                  </p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -71,7 +79,7 @@ export function Header() {
                 <Link href="/settings">Settings</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>Log out</DropdownMenuItem>
+              <DropdownMenuItem onClick={onLogout}>Log out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

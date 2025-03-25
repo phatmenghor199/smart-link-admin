@@ -1,42 +1,62 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import {
+  isAuthenticated,
+  getCurrentUser,
+  logoutUser,
+} from "@/services/auth.service";
+import { User } from "@/types";
 
 export default function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, isLoading, router]);
+    // Check authentication status
+    const checkAuthStatus = () => {
+      const authenticated = isAuthenticated();
+
+      if (!authenticated) {
+        router.push("/login");
+        return;
+      }
+
+      // Get current user
+      const currentUser = getCurrentUser();
+      setUser(currentUser);
+      setIsLoading(false);
+    };
+
+    checkAuthStatus();
+  }, [router]);
+
+  const handleLogout = () => {
+    logoutUser();
+    router.push("/login");
+  };
 
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
-        Loading...
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-current border-t-transparent text-primary" />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar />
+      <Sidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header user={user} onLogout={handleLogout} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

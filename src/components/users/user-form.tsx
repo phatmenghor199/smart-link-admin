@@ -4,10 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store";
 import { User, UserFormData } from "@/types";
-import { createUser, updateUser } from "@/store/features/user-slice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
-interface UserFormProps {
+export interface UserFormProps {
   user?: User;
-  onComplete: () => void;
+  onSubmit: (data: UserFormData) => Promise<void>;
+  onCancel: () => void;
 }
 
 const formSchema = z.object({
@@ -38,9 +35,9 @@ const formSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-export function UserForm({ user, onComplete }: UserFormProps) {
-  const dispatch = useDispatch<AppDispatch>();
+export function UserForm({ user, onSubmit, onCancel }: UserFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -58,38 +55,19 @@ export function UserForm({ user, onComplete }: UserFormProps) {
     },
   });
 
-  const onSubmit = async (data: UserFormData) => {
+  const handleFormSubmit = async (data: UserFormData) => {
     setIsSubmitting(true);
-
     try {
-      if (user) {
-        // Update existing user
-        await dispatch(updateUser({ id: user.id, userData: data }));
-        toast.success("User Updated", {
-          description: "User has been updated successfully.",
-        });
-      } else {
-        // Create new user
-        await dispatch(createUser(data));
-        toast.success("User Created", {
-          description: "New user has been created successfully.",
-        });
-      }
-
-      onComplete();
-    } catch {
-      toast.error("Error", {
-        description: user
-          ? "Failed to update user. Please try again."
-          : "Failed to create user. Please try again.",
-      });
+      await onSubmit(data);
+    } catch (error) {
+      console.error("Form submission error:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 py-4">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -115,10 +93,25 @@ export function UserForm({ user, onComplete }: UserFormProps) {
 
         {!user && (
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               {...register("password")}
             />
@@ -145,6 +138,9 @@ export function UserForm({ user, onComplete }: UserFormProps) {
                 <SelectItem value="user">User</SelectItem>
               </SelectContent>
             </Select>
+            {errors.role && (
+              <p className="text-sm text-red-500">{errors.role.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -163,12 +159,15 @@ export function UserForm({ user, onComplete }: UserFormProps) {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            {errors.status && (
+              <p className="text-sm text-red-500">{errors.status.message}</p>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex justify-end space-x-4">
-        <Button type="button" variant="outline" onClick={onComplete}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>

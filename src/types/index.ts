@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 export interface User {
   id: string;
   name: string;
@@ -36,32 +38,4 @@ export interface Plan {
   price: number;
   features: string[];
   popular: boolean;
-}
-
-export interface AuthState {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export interface UserState {
-  users: User[];
-  selectedUser: User | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export interface PlanState {
-  plans: Plan[];
-  selectedPlan: Plan | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  message: string;
-  success: boolean;
 }

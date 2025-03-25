@@ -18,8 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
+
+interface SidebarProps {
+  onLogout: () => void;
+}
 
 const sidebarItems = [
   {
@@ -54,9 +57,8 @@ const sidebarItems = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -102,7 +104,7 @@ export function Sidebar() {
               className="w-full justify-start text-muted-foreground"
               onClick={() => {
                 setIsMobileOpen(false);
-                logout();
+                onLogout();
               }}
             >
               <LogOut className="mr-2 h-5 w-5" />
@@ -164,7 +166,7 @@ export function Sidebar() {
             "w-full text-muted-foreground",
             collapsed ? "justify-center px-2" : "justify-start"
           )}
-          onClick={logout}
+          onClick={onLogout}
         >
           <LogOut className="h-5 w-5" />
           {!collapsed && <span className="ml-2">Log out</span>}
