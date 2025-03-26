@@ -1,5 +1,5 @@
 // src/services/plans.ts
-import { Plan } from "@/types";
+import { Plan } from "@/models";
 
 // Mock data
 const mockPlans: Plan[] = [

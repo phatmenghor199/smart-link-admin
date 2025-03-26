@@ -1,6 +1,6 @@
 "use client";
 
-import { User } from "@/types";
+import { User } from "@/models";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

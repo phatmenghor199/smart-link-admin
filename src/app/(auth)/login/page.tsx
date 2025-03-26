@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { loginUser, isAuthenticated } from "@/services/auth.service";
+import { loginUser } from "@/services/auth.service";
+import showToast from "@/utils/ui/show-toast";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -38,13 +39,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    // Redirect to dashboard if already authenticated
-    if (isAuthenticated()) {
-      router.push("/dashboard");
-    }
-  }, [router]);
 
   const {
     register,
@@ -63,23 +57,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    try {
-      const result = await loginUser({
-        email: data.email,
-        password: data.password,
-        rememberMe: data.rememberMe,
-      });
+    const result = await loginUser({
+      email: data.email,
+      password: data.password,
+      rememberMe: data.rememberMe,
+    });
 
-      if (result.success) {
-        router.push("/dashboard");
-      } else {
-        setError(result.error || "Failed to login. Please try again.");
-      }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
-      console.error(err);
-    } finally {
+    if (result.success) {
+      showToast(result.message, "success");
+      router.replace("/dashboard");
+    } else {
+      showToast(result.message, "error");
       setIsLoading(false);
+      setError(result.message || "Failed to login. Please try again.");
     }
   };
 

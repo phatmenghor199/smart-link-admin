@@ -10,7 +10,7 @@ import { Check, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { fetchPlanById, subscribeToPlan } from "@/services/plans.service";
-import { Plan } from "@/types";
+import { Plan } from "@/models";
 import { toast } from "sonner";
 
 export default function PlanDetailPage() {

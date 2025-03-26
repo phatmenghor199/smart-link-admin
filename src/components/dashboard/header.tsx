@@ -14,21 +14,35 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { User } from "@/types";
+import { fetchUserProfileByToken } from "@/services/users.service";
+import { UserProfileModel } from "@/models/user/user-profile.model";
+import { useEffect, useState } from "react";
 
 interface HeaderProps {
-  user: User | null;
   onLogout: () => void;
 }
 
-export function Header({ user, onLogout }: HeaderProps) {
+export function Header({ onLogout }: HeaderProps) {
   const pathname = usePathname();
+
+  const [profile, setProfile] = useState<UserProfileModel | null>(null);
+
+  useEffect(() => {
+    callUserProfile();
+  }, []);
 
   // Get page title from current path
   const getPageTitle = () => {
     const path = pathname.split("/").pop() || "dashboard";
     return path.charAt(0).toUpperCase() + path.slice(1);
   };
+
+  async function callUserProfile() {
+    const response = await fetchUserProfileByToken();
+    if (response.success) {
+      setProfile(response.data);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6">
@@ -50,10 +64,10 @@ export function Header({ user, onLogout }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                 <Avatar className="h-9 w-9">
-                  <AvatarImage src={user?.avatar} alt={user?.name} />
+                  <AvatarImage src={""} alt={profile?.username} />
                   <AvatarFallback className="text-xs">
-                    {user?.name
-                      ? user.name
+                    {profile?.username
+                      ? profile.username
                           .split(" ")
                           .map((n) => n[0])
                           .join("")
@@ -65,9 +79,11 @@ export function Header({ user, onLogout }: HeaderProps) {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name || "User"}</p>
+                  <p className="text-sm font-medium">
+                    {profile?.username || "User"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    {user?.email || "user@example.com"}
+                    {profile?.username || "user@example.com"}
                   </p>
                 </div>
               </DropdownMenuLabel>

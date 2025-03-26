@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, User as UserIcon, Key, Shield } from "lucide-react";
 import { getCurrentUser } from "@/services/auth.service";
-import { User } from "@/types";
+import { User } from "@/models";
 
 interface ProfileData {
   name: string;

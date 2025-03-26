@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { fetchAllPlans } from "@/services/plans.service";
-import { Plan } from "@/types";
+import { Plan } from "@/models";
 import { toast } from "sonner";
 
 export default function PlansPage() {

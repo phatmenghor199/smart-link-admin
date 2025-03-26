@@ -1,19 +1,9 @@
 // src/services/auth.ts
 
-import { setCookie, getCookie, deleteCookie } from "cookies-next";
-import { User, RegisterCredentials } from "@/types";
+import { setCookie } from "cookies-next";
+import { User, RegisterCredentials } from "@/models";
 import { axiosServer } from "@/utils/axios";
-
-// Mock user data
-const mockUser: User = {
-  id: "1",
-  name: "John Doe",
-  email: "john@example.com",
-  role: "admin",
-  avatar: "/avatars/john-doe.png",
-  createdAt: new Date().toISOString(),
-  status: "active",
-};
+import { storeToken, storeTokenRemember } from "@/utils/local-storage/token";
 
 /**
  * Login user with credentials
@@ -26,28 +16,24 @@ interface LoginCredentials {
 }
 export async function loginUser(credentials: LoginCredentials) {
   try {
-    console.log("##credentials", credentials);
-    const response = await axiosServer.post("/api/v1/auth/login", credentials);
+    const response = await axiosServer.post("/v1/auth/login", {
+      email: credentials.email,
+      password: credentials.password,
+    });
 
-    console.log("##response", response);
-
-    // Set auth cookie
-    const token = "mock-jwt-token";
+    const token = response.data.data.accessToken;
     if (credentials.rememberMe) {
-      setCookie("auth-token", token, { maxAge: 30 * 24 * 60 * 60 });
+      console.log("storeTokenRemember", token);
+      storeTokenRemember(token);
     } else {
-      setCookie("auth-token", token);
+      storeToken(token);
     }
 
-    // Store user in localStorage for persistence across page refreshes
-    if (typeof window !== "undefined") {
-      localStorage.setItem("user", JSON.stringify(mockUser));
-    }
+    console.log("storeTokenRemember", token);
 
-    return { success: true, user: mockUser };
-  } catch (error) {
-    console.error("Login error:", error);
-    return { success: false, error: "Login failed. Please try again." };
+    return { success: true, message: "Login successful" };
+  } catch {
+    return { success: false, message: "Login failed. Please try again." };
   }
 }
 
@@ -84,53 +70,10 @@ export async function registerUser(credentials: RegisterCredentials): Promise<{
     setCookie("auth-token", token);
 
     // Store user in localStorage
-    if (typeof window !== "undefined") {
-      localStorage.setItem("user", JSON.stringify(newUser));
-    }
 
     return { success: true, user: newUser };
   } catch (error) {
     console.error("Registration error:", error);
     return { success: false, error: "Registration failed. Please try again." };
-  }
-}
-
-/**
- * Logout the current user
- */
-export function logoutUser(): void {
-  // Delete auth cookie
-  deleteCookie("auth-token");
-
-  // Remove user from localStorage
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("user");
-  }
-}
-
-/**
- * Check if user is authenticated
- */
-export function isAuthenticated(): boolean {
-  const token = getCookie("auth-token");
-  return !!token;
-}
-
-/**
- * Get the current user
- */
-export function getCurrentUser(): User | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const userStr = localStorage.getItem("user");
-  if (!userStr) return null;
-
-  try {
-    return JSON.parse(userStr) as User;
-  } catch (e) {
-    console.error("Error parsing user from localStorage", e);
-    return null;
   }
 }

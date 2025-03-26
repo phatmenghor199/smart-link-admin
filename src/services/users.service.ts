@@ -1,5 +1,7 @@
 // src/services/users.ts
-import { User, UserFormData } from "@/types";
+
+import { User, UserFormData } from "@/models";
+import { axiosClientWithAuth } from "@/utils/axios";
 
 // Mock data
 const mockUsers: User[] = [
@@ -30,6 +32,15 @@ const mockUsers: User[] = [
     status: "inactive",
   },
 ];
+
+export async function fetchUserProfileByToken() {
+  try {
+    const response = await axiosClientWithAuth.get("/v1/user/token");
+    return { success: true, data: response.data.data };
+  } catch {
+    return { success: false, data: null };
+  }
+}
 
 /**
  * Fetch all users

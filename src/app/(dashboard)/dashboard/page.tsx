@@ -16,7 +16,7 @@ import { Users, CreditCard, LineChart, Activity, Loader2 } from "lucide-react";
 import { fetchAllUsers } from "@/services/users.service";
 import { fetchAllPlans } from "@/services/plans.service";
 import { toast } from "sonner";
-import { User, Plan } from "@/types";
+import { User, Plan } from "@/models";
 
 interface DashboardMetrics {
   totalUsers: number;

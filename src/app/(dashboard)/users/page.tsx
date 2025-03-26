@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { User, UserFormData } from "@/types";
+import { User, UserFormData } from "@/models";
 import {
   fetchAllUsers,
   createUser,
