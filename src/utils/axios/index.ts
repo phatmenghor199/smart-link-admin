@@ -92,7 +92,7 @@ class PerformanceTracker {
       console.log(`Duration: ${duration}ms`);
 
       // Log warning for slow requests
-      if (duration > 2000) {
+      if (duration > 6000) {
         console.warn(
           `🐌 Slow Request: ${duration}ms for ${response.config.url}`
         );
@@ -110,8 +110,8 @@ class PerformanceTracker {
 // Create axios instances with advanced error handling
 const createAxiosInstance = (requiresAuth: boolean = false) => {
   const axiosInstance = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_BASE_URL,
-    timeout: 30000, // 30 seconds
+    baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+    timeout: 300000, // 30 seconds
     headers: {
       "Content-Type": "application/json",
       "X-App-Version": "1.0.0",

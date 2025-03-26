@@ -1,4 +1,5 @@
 // src/services/auth.ts
+
 import { setCookie, getCookie, deleteCookie } from "cookies-next";
 import { User, RegisterCredentials } from "@/types";
 import { axiosServer } from "@/utils/axios";
@@ -23,15 +24,9 @@ interface LoginCredentials {
   password: string;
   rememberMe?: boolean;
 }
-export async function loginUser(credentials: LoginCredentials): Promise<{
-  success: boolean;
-  user?: User;
-  error?: string;
-}> {
+export async function loginUser(credentials: LoginCredentials) {
   try {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
+    console.log("##credentials", credentials);
     const response = await axiosServer.post("/api/v1/auth/login", credentials);
 
     console.log("##response", response);
