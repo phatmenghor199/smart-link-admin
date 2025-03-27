@@ -15,8 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { fetchUserProfileByToken } from "@/services/users.service";
-import { UserProfileModel } from "@/models/user/user-profile.model";
 import { useEffect, useState } from "react";
+import { EnhancedUser } from "@/models/user/user-profile.model";
 
 interface HeaderProps {
   onLogout: () => void;
@@ -25,7 +25,7 @@ interface HeaderProps {
 export function Header({ onLogout }: HeaderProps) {
   const pathname = usePathname();
 
-  const [profile, setProfile] = useState<UserProfileModel | null>(null);
+  const [profile, setProfile] = useState<EnhancedUser | null>(null);
 
   useEffect(() => {
     callUserProfile();

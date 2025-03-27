@@ -1,40 +1,15 @@
-export interface UserProfileModel {
-  id: number;
-  username: string;
-  userRole: string;
-  shop: Shop;
-  activeSubscription: ActiveSubscription;
-  hasActiveSubscription: boolean;
-  createdAt: string;
-  updatedAt: any;
-}
+// src/models/user/index.ts
 
-interface Shop {
+export interface Shop {
   id: number;
   name: string;
   location: string;
   user: any;
   createdAt: string;
-  updatedAt: any;
+  updatedAt: string | null;
 }
 
-interface ActiveSubscription {
-  id: number;
-  plan: Plan;
-  startDate: string;
-  endDate: string;
-  status: string;
-  autoRenew: boolean;
-  transactionId: string;
-  amountPaid: number;
-  previousSubscriptionId: any;
-  createdAt: string;
-  updatedAt: any;
-  isActive: boolean;
-  daysRemaining: number;
-}
-
-interface Plan {
+export interface Plan {
   id: number;
   name: string;
   description: string;
@@ -47,4 +22,40 @@ interface Plan {
   status: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ActiveSubscription {
+  id: number;
+  plan: Plan;
+  startDate: string;
+  endDate: string;
+  status: string;
+  autoRenew: boolean;
+  transactionId: string;
+  amountPaid: number;
+  previousSubscriptionId: number | null;
+  createdAt: string;
+  updatedAt: string | null;
+  isActive: boolean;
+  daysRemaining: number;
+}
+
+export interface EnhancedUser {
+  id: number;
+  username: string;
+  userRole: "ADMIN" | "DEVELOPER" | "SHOP_ADMIN" | "USER";
+  shop: Shop | null;
+  activeSubscription: ActiveSubscription | null;
+  hasActiveSubscription: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface UserPaginationResponse {
+  content: EnhancedUser[];
+  pageNo: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
 }

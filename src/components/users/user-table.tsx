@@ -1,7 +1,6 @@
 "use client";
 
-import { User } from "@/models";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Trash, Edit, Eye } from "lucide-react";
@@ -21,15 +20,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EnhancedUser } from "@/models/user/user-profile.model";
 
-export interface UserTableProps {
-  users: User[];
-  onView: (userId: string) => Promise<void>;
-  onEdit: (userId: string) => Promise<void>;
-  onDelete: (userId: string) => Promise<void>;
+export interface EnhancedUserTableProps {
+  users: EnhancedUser[];
+  onView: (userId: number) => Promise<void>;
+  onEdit: (userId: number) => Promise<void>;
+  onDelete: (userId: number) => Promise<void>;
 }
 
-export function UserTable({ users, onView, onEdit, onDelete }: UserTableProps) {
+export function EnhancedUserTable({
+  users,
+  onView,
+  onEdit,
+  onDelete,
+}: EnhancedUserTableProps) {
   if (users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -47,8 +52,9 @@ export function UserTable({ users, onView, onEdit, onDelete }: UserTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>User</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Shop</TableHead>
+            <TableHead>Subscription</TableHead>
             <TableHead>Created At</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -58,28 +64,34 @@ export function UserTable({ users, onView, onEdit, onDelete }: UserTableProps) {
             <TableRow key={user.id}>
               <TableCell className="flex items-center">
                 <Avatar className="h-8 w-8 mr-2">
-                  <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="text-xs">
-                    {user.name
-                      .split(" ")
+                    {user.username
+                      .split("")
                       .map((n) => n[0])
-                      .join("")}
+                      .join("")
+                      .toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  <p className="font-medium">{user.username}</p>
                 </div>
               </TableCell>
               <TableCell>
-                <Badge
-                  variant={user.status === "active" ? "default" : "secondary"}
-                >
-                  {user.status}
-                </Badge>
+                <Badge variant="outline">{user.userRole}</Badge>
               </TableCell>
               <TableCell>
-                <Badge variant="outline">{user.role}</Badge>
+                {user.shop ? (
+                  <Badge variant="secondary">{user.shop.name}</Badge>
+                ) : (
+                  <span className="text-muted-foreground">No Shop</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={user.hasActiveSubscription ? "default" : "secondary"}
+                >
+                  {user.hasActiveSubscription ? "Active" : "No Subscription"}
+                </Badge>
               </TableCell>
               <TableCell>
                 {new Date(user.createdAt).toLocaleDateString()}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -12,101 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Overview } from "@/components/dashboard/overview";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { motion } from "framer-motion";
-import { Users, CreditCard, LineChart, Activity, Loader2 } from "lucide-react";
-import { fetchAllUsers } from "@/services/users.service";
-import { fetchAllPlans } from "@/services/plans.service";
-import { toast } from "sonner";
-import { User, Plan } from "@/models";
-
-interface DashboardMetrics {
-  totalUsers: number;
-  totalRevenue: number;
-  activePlans: number;
-  activeSessions: number;
-  userGrowth: number;
-  revenueGrowth: number;
-  planGrowth: number;
-  sessionGrowth: number;
-}
+import { Users, CreditCard, LineChart, Activity } from "lucide-react";
 
 export default function DashboardPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
-    totalUsers: 0,
-    totalRevenue: 0,
-    activePlans: 0,
-    activeSessions: 0,
-    userGrowth: 0,
-    revenueGrowth: 0,
-    planGrowth: 0,
-    sessionGrowth: 0,
-  });
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-
-      try {
-        // Fetch users and plans in parallel
-        const [fetchedUsers, fetchedPlans] = await Promise.all([
-          fetchAllUsers(),
-          fetchAllPlans(),
-        ]);
-
-        setUsers(fetchedUsers);
-        setPlans(fetchedPlans);
-
-        // Calculate metrics
-        calculateMetrics(fetchedUsers, fetchedPlans);
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-        toast.error("Failed to load dashboard data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  // Calculate dashboard metrics from the fetched data
-  const calculateMetrics = (users: User[], plans: Plan[]) => {
-    // In a real app, these would be calculated from actual data
-    // For demo purposes, we'll use the length of arrays and some mock calculations
-
-    const activeUsers = users.filter((user) => user.status === "active");
-
-    // Mock revenue calculation - in reality would come from orders/subscriptions
-    const mockRevenuePerUser = 34.27;
-    const totalRevenue = activeUsers.length * mockRevenuePerUser;
-
-    // Mock active plans - in reality would be from subscriptions table
-    const activePlans = Math.round(activeUsers.length * 0.75);
-
-    // Mock sessions - in reality would come from analytics data
-    const activeSessions = Math.round(activeUsers.length * 0.43);
-
-    setMetrics({
-      totalUsers: users.length,
-      totalRevenue: totalRevenue,
-      activePlans: activePlans,
-      activeSessions: activeSessions,
-      userGrowth: 12, // Mock growth percentages
-      revenueGrowth: 20.1,
-      planGrowth: 7.4,
-      sessionGrowth: 5.4,
-    });
+  const metrics = {
+    totalUsers: 250,
+    totalRevenue: 45678.9,
+    activePlans: 120,
+    activeSessions: 180,
+    userGrowth: 12,
+    revenueGrowth: 20.1,
+    planGrowth: 7.4,
+    sessionGrowth: 5.4,
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <motion.div
@@ -196,6 +113,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="activity" className="space-y-4">
           <Card>
             <CardHeader>
