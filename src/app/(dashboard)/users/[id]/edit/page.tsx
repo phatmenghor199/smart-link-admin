@@ -34,7 +34,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { EnhancedUser } from "@/models/user/user-profile.model";
+import { UserProfileModel } from "@/models/user/user-profile.model";
 
 // Define a separate interface for user update that includes password
 interface UserUpdateData {
@@ -62,7 +62,7 @@ type EditUserFormData = z.infer<typeof editUserSchema>;
 export default function UserEditPage() {
   const params = useParams();
   const router = useRouter();
-  const [user, setUser] = useState<EnhancedUser | null>(null);
+  const [user, setUser] = useState<UserProfileModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

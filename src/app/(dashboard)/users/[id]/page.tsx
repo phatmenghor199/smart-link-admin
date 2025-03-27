@@ -20,12 +20,12 @@ import { Separator } from "@/components/ui/separator";
 import { fetchUserById } from "@/services/users.service";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { EnhancedUser } from "@/models/user/user-profile.model";
+import { UserProfileModel } from "@/models/user/user-profile.model";
 
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [user, setUser] = useState<EnhancedUser | null>(null);
+  const [user, setUser] = useState<UserProfileModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

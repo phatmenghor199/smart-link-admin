@@ -15,11 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-import { EnhancedUser } from "@/models/user/user-profile.model";
+import { UserProfileModel } from "@/models/user/user-profile.model";
 
 export interface UserFormProps {
-  user?: EnhancedUser;
-  onSubmit: (data: Partial<EnhancedUser>) => Promise<void>;
+  user?: UserProfileModel;
+  onSubmit: (data: Partial<UserProfileModel>) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -36,7 +36,7 @@ export function UserForm({ user, onSubmit, onCancel }: UserFormProps) {
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<Partial<EnhancedUser>>({
+  } = useForm<Partial<UserProfileModel>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       username: user?.username || "",
@@ -44,7 +44,7 @@ export function UserForm({ user, onSubmit, onCancel }: UserFormProps) {
     },
   });
 
-  const handleFormSubmit = async (data: Partial<EnhancedUser>) => {
+  const handleFormSubmit = async (data: Partial<UserProfileModel>) => {
     setIsSubmitting(true);
     try {
       await onSubmit(data);

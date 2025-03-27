@@ -20,10 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { EnhancedUser } from "@/models/user/user-profile.model";
+import { UserProfileModel } from "@/models/user/user-profile.model";
 
 export interface EnhancedUserTableProps {
-  users: EnhancedUser[];
+  users: UserProfileModel[];
   onView: (userId: number) => Promise<void>;
   onEdit: (userId: number) => Promise<void>;
   onDelete: (userId: number) => Promise<void>;

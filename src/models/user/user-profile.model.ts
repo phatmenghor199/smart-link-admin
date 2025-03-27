@@ -1,6 +1,6 @@
 // src/models/user/index.ts
 
-export interface Shop {
+export interface ShopModel {
   id: number;
   name: string;
   location: string;
@@ -9,7 +9,7 @@ export interface Shop {
   updatedAt: string | null;
 }
 
-export interface Plan {
+export interface PlanModel {
   id: number;
   name: string;
   description: string;
@@ -24,9 +24,9 @@ export interface Plan {
   updatedAt: string;
 }
 
-export interface ActiveSubscription {
+export interface ActiveSubscriptionModel {
   id: number;
-  plan: Plan;
+  plan: PlanModel;
   startDate: string;
   endDate: string;
   status: string;
@@ -40,19 +40,20 @@ export interface ActiveSubscription {
   daysRemaining: number;
 }
 
-export interface EnhancedUser {
+export interface UserProfileModel {
   id: number;
   username: string;
-  userRole: "ADMIN" | "DEVELOPER" | "SHOP_ADMIN" | "USER";
-  shop: Shop | null;
-  activeSubscription: ActiveSubscription | null;
+  userRole: string;
+  shop: ShopModel | null;
+  status: string;
+  activeSubscription: ActiveSubscriptionModel | null;
   hasActiveSubscription: boolean;
   createdAt: string;
   updatedAt: string | null;
 }
 
-export interface UserPaginationResponse {
-  content: EnhancedUser[];
+export interface UserProfilePaginationModel {
+  content: UserProfileModel[];
   pageNo: number;
   pageSize: number;
   totalElements: number;
