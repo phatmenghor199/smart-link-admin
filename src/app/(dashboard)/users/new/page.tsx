@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Save,
   Loader2,
-  ShieldCheck,
   Mail,
-  UserIcon,
+  ShieldCheck,
   KeyRound,
+  Package,
+  Building2,
+  MapPin,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,119 +34,209 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createUser } from "@/services/users.service";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Imports from our service
+import {
+  createUserProcess,
+  fetchAvailablePlansApi,
+  USER_ROLES,
+  USER_STATUSES,
+  UserRole,
+  UserStatus,
+} from "@/services/users.service";
+
+// Zod for form validation
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
-import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useForm, Controller, FieldError } from "react-hook-form";
+import FormField from "@/components/form/form-field";
 
-// Interface for creating a new user
-interface NewUserData {
-  username: string;
-  userRole: "ADMIN" | "DEVELOPER" | "SHOP_ADMIN" | "USER";
-  password: string;
-}
-
-// Form validation schema
-const newUserSchema = z
+// Create simplified validation schema with proper context typing
+const userCreationSchema = z
   .object({
-    username: z
+    // User Details
+    email: z
       .string()
       .email("Please enter a valid email address")
       .min(1, "Email is required"),
 
-    userRole: z.enum(["ADMIN", "DEVELOPER", "SHOP_ADMIN", "USER"], {
-      errorMap: () => ({ message: "Please select a valid user role" }),
+    // Simple password validation
+    password: z.string().min(1, "Password is required"),
+
+    // User Role selection
+    role: z.enum(USER_ROLES, {
+      errorMap: () => ({
+        message: "Please select a valid user role",
+      }),
     }),
 
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-      .regex(/[0-9]/, "Password must contain at least one number")
-      .regex(
-        /[!@#$%^&*()]/,
-        "Password must contain at least one special character"
-      ),
+    // User Status selection
+    status: z.enum(USER_STATUSES, {
+      errorMap: () => ({
+        message: "Please select a valid user status",
+      }),
+    }),
 
-    confirmPassword: z.string(),
+    // Shop Details
+    shopName: z.string().optional(),
+    shopLocation: z.string().optional(),
+
+    // Subscription Details
+    planId: z.number().optional(),
+    autoRenew: z.boolean().default(true),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+  .refine(
+    (data) => {
+      // If role is SHOP_ADMIN, shop name is required
+      if (data.role === "SHOP_ADMIN") {
+        return !!data.shopName && data.shopName.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Shop name is required for Shop Admin",
+      path: ["shopName"],
+    }
+  )
+  .refine(
+    (data) => {
+      // If role is SHOP_ADMIN, shop location is required
+      if (data.role === "SHOP_ADMIN") {
+        return !!data.shopLocation && data.shopLocation.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Shop location is required for Shop Admin",
+      path: ["shopLocation"],
+    }
+  )
+  .refine(
+    (data) => {
+      // If role is SHOP_ADMIN, plan ID is required
+      if (data.role === "SHOP_ADMIN") {
+        return data.planId !== undefined;
+      }
+      return true;
+    },
+    {
+      message: "Plan selection is required for Shop Admin",
+      path: ["planId"],
+    }
+  );
 
-type NewUserFormData = z.infer<typeof newUserSchema>;
+// TypeScript type for form data
+type UserCreationFormData = z.infer<typeof userCreationSchema>;
 
-export default function NewUserPage() {
+// Type for subscription plan
+interface SubscriptionPlan {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export default function CreateUserPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
 
+  // Form setup with Zod resolver
   const {
     control,
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm<NewUserFormData>({
-    resolver: zodResolver(newUserSchema),
+    setValue,
+  } = useForm<UserCreationFormData>({
+    resolver: zodResolver(userCreationSchema),
+    mode: "onBlur",
     defaultValues: {
-      username: "",
-      userRole: "USER",
+      email: "",
       password: "",
-      confirmPassword: "",
+      role: "USER", // Default to regular user
+      status: "ACTIVE",
+      shopName: "",
+      shopLocation: "",
+      autoRenew: true,
     },
   });
 
-  // Optional: Password strength tracking
-  const passwordValue = watch("password");
-  const [passwordStrength, setPasswordStrength] = useState(0);
+  // Watch selected role to conditionally render shop details
+  const selectedRole = watch("role");
 
-  // Calculate password strength
+  // Fetch available plans on component mount
   useEffect(() => {
-    let strength = 0;
-    if (passwordValue) {
-      // Check length
-      strength += passwordValue.length >= 8 ? 1 : 0;
-
-      // Check complexity
-      strength += /[A-Z]/.test(passwordValue) ? 1 : 0;
-      strength += /[a-z]/.test(passwordValue) ? 1 : 0;
-      strength += /[0-9]/.test(passwordValue) ? 1 : 0;
-      strength += /[!@#$%^&*()]/.test(passwordValue) ? 1 : 0;
-    }
-    setPasswordStrength(strength);
-  }, [passwordValue]);
-
-  // Form submission handler
-  const onSubmit = async (data: NewUserFormData) => {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      // Prepare new user data
-      const newUserPayload: NewUserData = {
-        username: data.username,
-        userRole: data.userRole,
-        password: data.password,
+    if (selectedRole === "SHOP_ADMIN") {
+      const loadPlans = async () => {
+        try {
+          const plansResponse = await fetchAvailablePlansApi();
+          if (plansResponse.success) {
+            setAvailablePlans(plansResponse.plans);
+          } else {
+            toast.error("Failed to load plans", {
+              description: plansResponse.error,
+            });
+          }
+        } catch (error) {
+          console.error("Error loading plans:", error);
+          toast.error("Failed to load subscription plans");
+        }
       };
 
-      const newUser = await createUser(newUserPayload);
+      loadPlans();
+    }
+  }, [selectedRole]);
 
-      toast.success("User created successfully");
-      router.push(`/users/${newUser.id}`);
+  // Form submission handler
+  const onSubmit = async (data: UserCreationFormData) => {
+    setIsSubmitting(true);
+
+    try {
+      // Prepare data for API call
+      const userCreationData = {
+        user: {
+          email: data.email,
+          password: data.password,
+          role: data.role,
+          status: data.status,
+        },
+        ...(data.role === "SHOP_ADMIN" &&
+        data.shopName &&
+        data.shopLocation &&
+        data.planId
+          ? {
+              shop: {
+                name: data.shopName,
+                location: data.shopLocation,
+              },
+              subscription: {
+                planId: data.planId,
+                autoRenew: data.autoRenew,
+              },
+            }
+          : {}),
+      };
+
+      const result = await createUserProcess(userCreationData);
+
+      if (result.success) {
+        toast.success("User Created", {
+          description: `${data.email} has been successfully set up.`,
+        });
+        router.push("/users"); // Redirect to users list
+      } else {
+        toast.error("Creation Failed", {
+          description: result.error || "Unable to create user",
+        });
+      }
     } catch (error) {
-      console.error("Failed to create user:", error);
-
-      // Try to extract meaningful error message
-      const errorMsg =
-        error instanceof Error ? error.message : "An unexpected error occurred";
-
-      setErrorMessage(errorMsg);
-      toast.error("Failed to create user");
+      console.error("User creation error:", error);
+      toast.error("Unexpected Error", {
+        description: "An unexpected error occurred",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -151,7 +246,7 @@ export default function NewUserPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="container mx-auto px-4 py-8"
+      className="px-4 pb-8 max-w-5xl"
     >
       {/* Page Header */}
       <div className="flex items-center mb-6 space-x-4">
@@ -159,204 +254,341 @@ export default function NewUserPage() {
           variant="outline"
           size="icon"
           onClick={() => router.push("/users")}
+          aria-label="Go back to users list"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Create New User</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Create User</h1>
+        </div>
       </div>
 
-      {/* Error Alert */}
-      {errorMessage && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Create User Form */}
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* User Details Card */}
         <Card>
-          <CardHeader>
-            <CardTitle>User Information</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              User Details
+            </CardTitle>
             <CardDescription>
-              Create a new user account with specific details
+              Enter basic user account information
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-6">
               {/* Email Input */}
-              <div className="space-y-2">
-                <Label htmlFor="username" className="flex items-center">
-                  <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-                  Email
-                </Label>
+              <FormField
+                label="Email Address"
+                name="email"
+                errors={errors.email}
+                icon={<Mail className="h-4 w-4" />}
+              >
                 <Controller
-                  name="username"
+                  name="email"
                   control={control}
                   render={({ field }) => (
                     <Input
+                      id="email"
                       {...field}
                       placeholder="user@example.com"
                       disabled={isSubmitting}
+                      aria-invalid={!!errors.email}
+                      autoComplete="email"
                     />
                   )}
                 />
-                {errors.username && (
-                  <p className="text-sm text-destructive">
-                    {errors.username.message}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              {/* User Role Select */}
-              <div className="space-y-2">
-                <Label htmlFor="userRole" className="flex items-center">
-                  <ShieldCheck className="mr-2 h-4 w-4 text-muted-foreground" />
-                  User Role
-                </Label>
+              {/* Password Input */}
+              <FormField
+                label="Password"
+                name="password"
+                errors={errors.password}
+                icon={<KeyRound className="h-4 w-4" />}
+              >
+                <div className="relative">
+                  <Controller
+                    name="password"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="password"
+                        {...field}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        disabled={isSubmitting}
+                        aria-invalid={!!errors.password}
+                        autoComplete="new-password"
+                      />
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </FormField>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mt-2">
+              {/* Role Selection */}
+              <FormField
+                label="User Role"
+                name="role"
+                errors={errors.role}
+                icon={<ShieldCheck className="h-4 w-4" />}
+              >
                 <Controller
-                  name="userRole"
+                  name="role"
                   control={control}
                   render={({ field }) => (
                     <Select
                       value={field.value}
                       onValueChange={(value) => {
-                        field.onChange(value);
+                        // Reset conditional fields when role changes
+                        if (value !== "SHOP_ADMIN") {
+                          setValue("shopName", "");
+                          setValue("shopLocation", "");
+                          setValue("planId", undefined);
+                        }
+                        field.onChange(value as UserRole);
                       }}
                       disabled={isSubmitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="role">
                         <SelectValue placeholder="Select user role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ADMIN">
-                          <div className="flex items-center">
-                            <UserIcon className="mr-2 h-4 w-4" />
-                            Admin
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="DEVELOPER">
-                          <div className="flex items-center">
-                            <UserIcon className="mr-2 h-4 w-4" />
-                            Developer
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="SHOP_ADMIN">
-                          <div className="flex items-center">
-                            <UserIcon className="mr-2 h-4 w-4" />
-                            Shop Admin
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="USER">
-                          <div className="flex items-center">
-                            <UserIcon className="mr-2 h-4 w-4" />
-                            User
-                          </div>
-                        </SelectItem>
+                        {USER_ROLES.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role
+                              .replace(/_/g, " ")
+                              .toLowerCase()
+                              .replace(/\b\w/g, (l) => l.toUpperCase())}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
                 />
-                {errors.userRole && (
-                  <p className="text-sm text-destructive">
-                    {errors.userRole.message}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              {/* Password Input */}
-              <div className="space-y-2">
-                <Label htmlFor="password" className="flex items-center">
-                  <KeyRound className="mr-2 h-4 w-4 text-muted-foreground" />
-                  Password
-                </Label>
+              {/* Status Selection */}
+              <FormField
+                label="User Status"
+                name="status"
+                errors={errors.status}
+                icon={<ShieldCheck className="h-4 w-4" />}
+              >
                 <Controller
-                  name="password"
+                  name="status"
                   control={control}
                   render={({ field }) => (
-                    <div className="relative">
-                      <Input
-                        {...field}
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter password"
-                        disabled={isSubmitting}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? "Hide" : "Show"}
-                      </Button>
-                    </div>
-                  )}
-                />
-                {errors.password && (
-                  <p className="text-sm text-destructive">
-                    {errors.password.message}
-                  </p>
-                )}
-                <div className="flex items-center space-x-2 mt-1">
-                  <div className="w-full h-1.5 bg-muted rounded overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        passwordStrength === 0
-                          ? "bg-destructive w-[0%]"
-                          : passwordStrength <= 2
-                          ? "bg-yellow-500 w-[25%]"
-                          : passwordStrength <= 3
-                          ? "bg-orange-500 w-[50%]"
-                          : passwordStrength === 4
-                          ? "bg-green-500 w-[75%]"
-                          : "bg-green-600 w-full"
-                      }`}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {passwordStrength === 0 && "Very Weak"}
-                    {passwordStrength === 1 && "Weak"}
-                    {passwordStrength === 2 && "Fair"}
-                    {passwordStrength === 3 && "Strong"}
-                    {passwordStrength >= 4 && "Very Strong"}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Password must be at least 8 characters, include uppercase,
-                  lowercase, number, and special character
-                </p>
-              </div>
-
-              {/* Confirm Password Input */}
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="flex items-center">
-                  <KeyRound className="mr-2 h-4 w-4 text-muted-foreground" />
-                  Confirm Password
-                </Label>
-                <Controller
-                  name="confirmPassword"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Confirm password"
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) =>
+                        field.onChange(value as UserStatus)
+                      }
                       disabled={isSubmitting}
-                    />
+                    >
+                      <SelectTrigger id="status">
+                        <SelectValue placeholder="Select user status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {USER_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0) + status.slice(1).toLowerCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 />
-                {errors.confirmPassword && (
-                  <p className="text-sm text-destructive">
-                    {errors.confirmPassword.message}
-                  </p>
-                )}
-              </div>
+              </FormField>
             </div>
           </CardContent>
         </Card>
 
+        {/* Shop Admin Only: Shop Details Card */}
+        {selectedRole === "SHOP_ADMIN" && (
+          <>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Shop Details
+                </CardTitle>
+                <CardDescription>
+                  Enter information about the shop
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Shop Name */}
+                  <FormField
+                    label="Shop Name"
+                    name="shopName"
+                    errors={errors.shopName}
+                    icon={<Building2 className="h-4 w-4" />}
+                  >
+                    <Controller
+                      name="shopName"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="shopName"
+                          {...field}
+                          placeholder="My Awesome Shop"
+                          disabled={isSubmitting}
+                          aria-invalid={!!errors.shopName}
+                        />
+                      )}
+                    />
+                  </FormField>
+
+                  {/* Shop Location */}
+                  <FormField
+                    label="Shop Location"
+                    name="shopLocation"
+                    errors={errors.shopLocation}
+                    icon={<MapPin className="h-4 w-4" />}
+                  >
+                    <Controller
+                      name="shopLocation"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="shopLocation"
+                          {...field}
+                          placeholder="City, Country"
+                          disabled={isSubmitting}
+                          aria-invalid={!!errors.shopLocation}
+                        />
+                      )}
+                    />
+                  </FormField>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  Subscription Details
+                </CardTitle>
+                <CardDescription>
+                  Select a subscription plan for the shop
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {availablePlans.length === 0 ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>No subscription plans available</AlertTitle>
+                    <AlertDescription>
+                      Unable to load subscription plans. Please try again later
+                      or contact support.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Plan Selection */}
+                    <FormField
+                      label="Select Plan"
+                      name="planId"
+                      errors={errors.planId}
+                      icon={<Package className="h-4 w-4" />}
+                    >
+                      <Controller
+                        name="planId"
+                        control={control}
+                        render={({ field }) => (
+                          <Select
+                            value={
+                              field.value !== undefined
+                                ? field.value.toString()
+                                : undefined
+                            }
+                            onValueChange={(value) => {
+                              field.onChange(Number(value));
+                            }}
+                            disabled={isSubmitting}
+                          >
+                            <SelectTrigger id="planId">
+                              <SelectValue placeholder="Choose a plan" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availablePlans.map((plan) => (
+                                <SelectItem
+                                  key={plan.id}
+                                  value={plan.id.toString()}
+                                >
+                                  {plan.name} - ${plan.price}/month
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </FormField>
+
+                    {/* Auto Renew Selection */}
+                    <FormField
+                      label="Auto Renew"
+                      name="autoRenew"
+                      errors={errors.autoRenew}
+                      icon={<ShieldCheck className="h-4 w-4" />}
+                    >
+                      <Controller
+                        name="autoRenew"
+                        control={control}
+                        render={({ field }) => (
+                          <Select
+                            value={field.value ? "true" : "false"}
+                            onValueChange={(value) => {
+                              field.onChange(value === "true");
+                            }}
+                            disabled={isSubmitting}
+                          >
+                            <SelectTrigger id="autoRenew">
+                              <SelectValue placeholder="Auto Renew" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">
+                                Enabled (Recommended)
+                              </SelectItem>
+                              <SelectItem value="false">Disabled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </FormField>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
         {/* Action Buttons */}
-        <div className="mt-6 flex justify-end space-x-4">
+        <div className="flex justify-end space-x-4 mt-6">
           <Button
             type="button"
             variant="outline"
@@ -365,7 +597,7 @@ export default function NewUserPage() {
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="min-w-32">
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

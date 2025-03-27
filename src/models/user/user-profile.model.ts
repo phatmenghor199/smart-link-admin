@@ -60,3 +60,38 @@ export interface UserProfilePaginationModel {
   totalPages: number;
   last: boolean;
 }
+
+// Add new user chnage to interface
+
+// call this api
+// /api/v1/auth/register
+
+// Copy
+// {
+//   "email": "string",
+//   "password": "string",
+//   "role": "ADMIN",
+//   "status": "ACTIVE"
+// }Then HAVE ID
+
+// /api/v1/shop/{userId}/buy-service
+
+// {
+//   "name": "string",
+//   "location": "string"
+// }
+
+// then
+
+// /api/v1/subscriptions
+
+// {
+//   "userId": 0,
+//   "planId": 0,
+//   "autoRenew": true,
+//   "transactionId": "string",
+//   "amountPaid": 0
+
+// planId is select
+
+// change this follow this for add user
