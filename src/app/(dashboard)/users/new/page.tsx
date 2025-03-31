@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -10,12 +10,8 @@ import {
   Mail,
   ShieldCheck,
   KeyRound,
-  Package,
-  Building2,
-  MapPin,
   Eye,
   EyeOff,
-  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,192 +30,82 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Imports from our service
-import {
-  createUserProcess,
-  fetchAvailablePlansApi,
-  USER_ROLES,
-  USER_STATUSES,
-  UserRole,
-  UserStatus,
-} from "@/services/users.service";
-
-// Zod for form validation
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import FormField from "@/components/form/form-field";
+import {
+  USER_ROLES,
+  USER_ROLES_CREATE,
+  USER_STATUS,
+} from "@/constants/key-page.ts/filter-user";
+import { UserRole, UserStatus } from "@/constants/enum/user-enum";
+import { registerUserApi, RegisterUserRequest } from "@/services/users.service";
 
 // Create simplified validation schema with proper context typing
-const userCreationSchema = z
-  .object({
-    // User Details
-    email: z
-      .string()
-      .email("Please enter a valid email address")
-      .min(1, "Email is required"),
+const userCreationSchema = z.object({
+  // User Details
+  email: z
+    .string()
+    .email("Please enter a valid email address")
+    .min(1, "Email is required"),
 
-    // Simple password validation
-    password: z.string().min(1, "Password is required"),
+  // Simple password validation
+  password: z.string().min(1, "Password is required"),
 
-    // User Role selection
-    role: z.enum(USER_ROLES, {
-      errorMap: () => ({
-        message: "Please select a valid user role",
-      }),
+  // User Role selection
+  role: z.enum(USER_ROLES, {
+    errorMap: () => ({
+      message: "Please select a valid user role",
     }),
+  }),
 
-    // User Status selection
-    status: z.enum(USER_STATUSES, {
-      errorMap: () => ({
-        message: "Please select a valid user status",
-      }),
+  // User Status selection
+  status: z.enum(USER_STATUS, {
+    errorMap: () => ({
+      message: "Please select a valid user status",
     }),
+  }),
+});
 
-    // Shop Details
-    shopName: z.string().optional(),
-    shopLocation: z.string().optional(),
-
-    // Subscription Details
-    planId: z.number().optional(),
-    autoRenew: z.boolean().default(true),
-  })
-  .refine(
-    (data) => {
-      // If role is SHOP_ADMIN, shop name is required
-      if (data.role === "SHOP_ADMIN") {
-        return !!data.shopName && data.shopName.trim().length > 0;
-      }
-      return true;
-    },
-    {
-      message: "Shop name is required for Shop Admin",
-      path: ["shopName"],
-    }
-  )
-  .refine(
-    (data) => {
-      // If role is SHOP_ADMIN, shop location is required
-      if (data.role === "SHOP_ADMIN") {
-        return !!data.shopLocation && data.shopLocation.trim().length > 0;
-      }
-      return true;
-    },
-    {
-      message: "Shop location is required for Shop Admin",
-      path: ["shopLocation"],
-    }
-  )
-  .refine(
-    (data) => {
-      // If role is SHOP_ADMIN, plan ID is required
-      if (data.role === "SHOP_ADMIN") {
-        return data.planId !== undefined;
-      }
-      return true;
-    },
-    {
-      message: "Plan selection is required for Shop Admin",
-      path: ["planId"],
-    }
-  );
-
-// TypeScript type for form data
 type UserCreationFormData = z.infer<typeof userCreationSchema>;
-
-// Type for subscription plan
-interface SubscriptionPlan {
-  id: number;
-  name: string;
-  price: number;
-}
 
 export default function CreateUserPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
 
   // Form setup with Zod resolver
   const {
     control,
     handleSubmit,
     formState: { errors },
-    watch,
-    setValue,
   } = useForm<UserCreationFormData>({
     resolver: zodResolver(userCreationSchema),
     mode: "onBlur",
     defaultValues: {
       email: "",
       password: "",
-      role: "USER", // Default to regular user
+      role: "ADMIN",
       status: "ACTIVE",
-      shopName: "",
-      shopLocation: "",
-      autoRenew: true,
     },
   });
-
-  // Watch selected role to conditionally render shop details
-  const selectedRole = watch("role");
-
-  // Fetch available plans on component mount
-  useEffect(() => {
-    if (selectedRole === "SHOP_ADMIN") {
-      const loadPlans = async () => {
-        try {
-          const plansResponse = await fetchAvailablePlansApi();
-          if (plansResponse.success) {
-            setAvailablePlans(plansResponse.plans);
-          } else {
-            toast.error("Failed to load plans", {
-              description: plansResponse.error,
-            });
-          }
-        } catch (error) {
-          console.error("Error loading plans:", error);
-          toast.error("Failed to load subscription plans");
-        }
-      };
-
-      loadPlans();
-    }
-  }, [selectedRole]);
 
   // Form submission handler
   const onSubmit = async (data: UserCreationFormData) => {
     setIsSubmitting(true);
 
     try {
-      // Prepare data for API call
-      const userCreationData = {
-        user: {
-          email: data.email,
-          password: data.password,
-          role: data.role,
-          status: data.status,
-        },
-        ...(data.role === "SHOP_ADMIN" &&
-        data.shopName &&
-        data.shopLocation &&
-        data.planId
-          ? {
-              shop: {
-                name: data.shopName,
-                location: data.shopLocation,
-              },
-              subscription: {
-                planId: data.planId,
-                autoRenew: data.autoRenew,
-              },
-            }
-          : {}),
+      const userCreationData: RegisterUserRequest = {
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        status: data.status,
       };
 
-      const result = await createUserProcess(userCreationData);
+      console.log("## User creation data:", userCreationData);
+
+      const result = await registerUserApi(userCreationData);
 
       if (result.success) {
         toast.success("User Created", {
@@ -245,7 +131,7 @@ export default function CreateUserPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="px-4 pb-8 max-w-5xl"
+      className="px-4 pb-8"
     >
       {/* Page Header */}
       <div className="flex items-center mb-6 space-x-4">
@@ -359,11 +245,6 @@ export default function CreateUserPage() {
                       value={field.value}
                       onValueChange={(value) => {
                         // Reset conditional fields when role changes
-                        if (value !== "SHOP_ADMIN") {
-                          setValue("shopName", "");
-                          setValue("shopLocation", "");
-                          setValue("planId", undefined);
-                        }
                         field.onChange(value as UserRole);
                       }}
                       disabled={isSubmitting}
@@ -372,7 +253,7 @@ export default function CreateUserPage() {
                         <SelectValue placeholder="Select user role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {USER_ROLES.map((role) => (
+                        {USER_ROLES_CREATE.map((role) => (
                           <SelectItem key={role} value={role}>
                             {role
                               .replace(/_/g, " ")
@@ -408,7 +289,7 @@ export default function CreateUserPage() {
                         <SelectValue placeholder="Select user status" />
                       </SelectTrigger>
                       <SelectContent>
-                        {USER_STATUSES.map((status) => (
+                        {USER_STATUS.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status.charAt(0) + status.slice(1).toLowerCase()}
                           </SelectItem>
@@ -421,170 +302,6 @@ export default function CreateUserPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Shop Admin Only: Shop Details Card */}
-        {selectedRole === "SHOP_ADMIN" && (
-          <>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-primary" />
-                  Shop Details
-                </CardTitle>
-                <CardDescription>
-                  Enter information about the shop
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-6">
-                  {/* Shop Name */}
-                  <FormField
-                    label="Shop Name"
-                    name="shopName"
-                    errors={errors.shopName}
-                    icon={<Building2 className="h-4 w-4" />}
-                  >
-                    <Controller
-                      name="shopName"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          id="shopName"
-                          {...field}
-                          placeholder="My Awesome Shop"
-                          disabled={isSubmitting}
-                          aria-invalid={!!errors.shopName}
-                        />
-                      )}
-                    />
-                  </FormField>
-
-                  {/* Shop Location */}
-                  <FormField
-                    label="Shop Location"
-                    name="shopLocation"
-                    errors={errors.shopLocation}
-                    icon={<MapPin className="h-4 w-4" />}
-                  >
-                    <Controller
-                      name="shopLocation"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          id="shopLocation"
-                          {...field}
-                          placeholder="City, Country"
-                          disabled={isSubmitting}
-                          aria-invalid={!!errors.shopLocation}
-                        />
-                      )}
-                    />
-                  </FormField>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  Subscription Details
-                </CardTitle>
-                <CardDescription>
-                  Select a subscription plan for the shop
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {availablePlans.length === 0 ? (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>No subscription plans available</AlertTitle>
-                    <AlertDescription>
-                      Unable to load subscription plans. Please try again later
-                      or contact support.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {/* Plan Selection */}
-                    <FormField
-                      label="Select Plan"
-                      name="planId"
-                      errors={errors.planId}
-                      icon={<Package className="h-4 w-4" />}
-                    >
-                      <Controller
-                        name="planId"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={
-                              field.value !== undefined
-                                ? field.value.toString()
-                                : undefined
-                            }
-                            onValueChange={(value) => {
-                              field.onChange(Number(value));
-                            }}
-                            disabled={isSubmitting}
-                          >
-                            <SelectTrigger id="planId">
-                              <SelectValue placeholder="Choose a plan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availablePlans.map((plan) => (
-                                <SelectItem
-                                  key={plan.id}
-                                  value={plan.id.toString()}
-                                >
-                                  {plan.name} - ${plan.price}/month
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </FormField>
-
-                    {/* Auto Renew Selection */}
-                    <FormField
-                      label="Auto Renew"
-                      name="autoRenew"
-                      errors={errors.autoRenew}
-                      icon={<ShieldCheck className="h-4 w-4" />}
-                    >
-                      <Controller
-                        name="autoRenew"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value ? "true" : "false"}
-                            onValueChange={(value) => {
-                              field.onChange(value === "true");
-                            }}
-                            disabled={isSubmitting}
-                          >
-                            <SelectTrigger id="autoRenew">
-                              <SelectValue placeholder="Auto Renew" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="true">
-                                Enabled (Recommended)
-                              </SelectItem>
-                              <SelectItem value="false">Disabled</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </FormField>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        )}
 
         {/* Action Buttons */}
         <div className="flex justify-end space-x-4 mt-6">

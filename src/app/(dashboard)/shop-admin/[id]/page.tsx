@@ -8,6 +8,7 @@ import {
   Mail,
   Calendar,
   ShieldCheck,
+  CreditCard,
   Loader2,
   Edit,
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { UserProfileModel } from "@/models/user/user-profile.model";
@@ -91,10 +93,7 @@ export default function UserDetailPage() {
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <Users className="w-12 h-12 text-primary" />
             </div>
-            <h2 className="text-xl font-semibold text-center flex-wrap overflow-clip break-words border-t pt-2">
-              {"Test Fixed User"}
-            </h2>
-
+            <h2 className="text-xl font-semibold">{user.username}</h2>
             <Badge variant="outline" className="mt-2">
               {user.userRole}
             </Badge>
@@ -142,8 +141,64 @@ export default function UserDetailPage() {
                 </div>
               )}
             </div>
+
+            <Separator className="my-6" />
+
+            {/* Subscription Details */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">
+                Subscription Details
+              </h3>
+              {user.hasActiveSubscription && user.activeSubscription ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Plan</span>
+                    </div>
+                    <Badge variant="outline">
+                      {user.activeSubscription.plan.name}
+                    </Badge>
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Subscription Ends</span>
+                    </div>
+                    <p>{formatDate(user.activeSubscription.endDate)}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No active subscription</p>
+              )}
+            </div>
           </CardContent>
         </Card>
+
+        {/* Shop Information (if available) */}
+        {user.shop && (
+          <Card className="md:col-span-3">
+            <CardHeader>
+              <CardTitle>Shop Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="font-medium">Shop Name</span>
+                  <p>{user.shop.name}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Location</span>
+                  <p>{user.shop.location}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Created At</span>
+                  <p>{formatDate(user.shop.createdAt)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="mt-6 flex justify-end space-x-4">

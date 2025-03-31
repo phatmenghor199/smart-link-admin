@@ -1,5 +1,5 @@
 export const userTableHeader = [
-  "No",
+  "ID",
   "Email",
   "Role",
   "Status",
@@ -8,7 +8,7 @@ export const userTableHeader = [
 ] as const;
 
 export const shopAdminTableHeader = [
-  "User ID",
+  "ID",
   "Email",
   "Role",
   "Status",

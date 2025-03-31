@@ -1,84 +1,100 @@
-// src/services/plans.ts
-import { Plan } from "@/models";
-
-// Mock data
-const mockPlans: Plan[] = [
-  {
-    id: "1",
-    name: "Basic",
-    description: "Perfect for getting started",
-    price: 9.99,
-    features: ["1 User", "5GB Storage", "Basic Support", "Email Notifications"],
-    popular: false,
-  },
-  {
-    id: "2",
-    name: "Pro",
-    description: "Best for professionals",
-    price: 19.99,
-    features: [
-      "5 Users",
-      "20GB Storage",
-      "Priority Support",
-      "Advanced Analytics",
-      "API Access",
-    ],
-    popular: true,
-  },
-  {
-    id: "3",
-    name: "Enterprise",
-    description: "For large organizations",
-    price: 49.99,
-    features: [
-      "Unlimited Users",
-      "100GB Storage",
-      "Dedicated Support",
-      "Advanced Analytics",
-      "API Access",
-      "Custom Integrations",
-    ],
-    popular: false,
-  },
-];
+// src/services/plans.service.ts
+import {
+  CreatePlanData,
+  PlanFilterOptions,
+  PlanModel,
+  PlanPaginationModel,
+} from "@/models/setting/plan-model";
+import { axiosClientWithAuth } from "@/utils/axios";
 
 /**
- * Fetch all plans
+ * Fetch all plans with filtering options
  */
-export async function fetchAllPlans(): Promise<Plan[]> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  // Return mock data
-  return [...mockPlans];
+export async function fetchAllPlans(
+  param: PlanFilterOptions = {}
+): Promise<PlanPaginationModel | null> {
+  try {
+    const response = await axiosClientWithAuth.post("/v1/plans/all", param);
+    return response.data.data;
+  } catch (error) {
+    console.error("Failed to fetch plans:", error);
+    return null;
+  }
 }
 
 /**
  * Fetch plan by ID
  */
-export async function fetchPlanById(planId: string): Promise<Plan | null> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  // Find plan from mock data
-  const plan = mockPlans.find((p) => p.id === planId);
-  return plan || null;
+export async function fetchPlanById(planId: number): Promise<PlanModel | null> {
+  try {
+    const response = await axiosClientWithAuth.get(`/v1/plans/${planId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error(`Failed to fetch plan with ID ${planId}:`, error);
+    return null;
+  }
 }
 
 /**
- * Subscribe to a plan
- * This is a placeholder for a real subscription function
+ * Create a new plan
  */
-export async function subscribeToPlan(
-  planId: string,
-  paymentDetails: any
-): Promise<{ success: boolean; message: string }> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+export async function createPlanService(
+  planData: CreatePlanData
+): Promise<{ success: boolean; data?: PlanModel; error?: string }> {
+  try {
+    const response = await axiosClientWithAuth.post("/v1/plans", planData);
+    return {
+      success: true,
+      data: response.data.data,
+    };
+  } catch (error: any) {
+    console.error("Failed to create plan:", error);
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to create plan",
+    };
+  }
+}
 
-  // In a real app, you would process the payment and create a subscription
-  return {
-    success: true,
-    message: "Subscription created successfully",
-  };
+/**
+ * Update an existing plan
+ */
+export async function updatePlan(
+  planId: number,
+  planData: Partial<CreatePlanData>
+): Promise<{ success: boolean; data?: PlanModel; error?: string }> {
+  try {
+    const response = await axiosClientWithAuth.put(
+      `/v1/plans/${planId}`,
+      planData
+    );
+    return {
+      success: true,
+      data: response.data.data,
+    };
+  } catch (error: any) {
+    console.error(`Failed to update plan with ID ${planId}:`, error);
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to update plan",
+    };
+  }
+}
+
+/**
+ * Delete a plan
+ */
+export async function deletePlan(
+  planId: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await axiosClientWithAuth.delete(`/v1/plans/${planId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Failed to delete plan with ID ${planId}:`, error);
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to delete plan",
+    };
+  }
 }

@@ -17,3 +17,9 @@ export const SUBSCRIPTION_OPTIONS = [
   { value: "ACTIVE", label: "Active Subscriptions" },
   { value: "INACTIVE", label: "No Subscriptions" },
 ];
+
+export const USER_ROLES = ["ADMIN", "SHOP_ADMIN", "DEVELOPER"] as const;
+
+export const USER_STATUS = ["ACTIVE", "INACTIVE"] as const;
+
+export const USER_ROLES_CREATE = ["ADMIN", "DEVELOPER"] as const;

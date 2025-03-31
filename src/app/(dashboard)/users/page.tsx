@@ -55,8 +55,8 @@ import {
   SUBSCRIPTION_OPTIONS,
   USER_ROLE_OPTIONS,
   USER_STATUS_OPTIONS,
-} from "@/constants/filter-user";
-import { userTableHeader } from "@/constants/table-header.ts/customer";
+} from "@/constants/key-page.ts/filter-user";
+import { userTableHeader } from "@/constants/key-page.ts/filter-customer";
 
 export default function UsersPage() {
   const router = useRouter();

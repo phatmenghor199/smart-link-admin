@@ -101,13 +101,9 @@ const logger = {
     const timestamp = formatTimestamp();
     const logId = requestId ? `[${requestId}] ` : "";
     if (isBrowser) {
-      console.error(
-        `%c${timestamp} ${logId}${message}`,
-        colors.red,
-        data || ""
-      );
+      console.log(`%c${timestamp} ${logId}${message}`, colors.red, data || "");
     } else {
-      console.error(
+      console.log(
         `${colors.red}${timestamp} ${logId}${message}${colors.reset}`,
         data || ""
       );
@@ -588,7 +584,7 @@ export function viewLogDetails(index: number): void {
   if (index >= 0 && index < memoryLogs.length) {
     console.log(`Log Details for entry #${index}:`, memoryLogs[index]);
   } else {
-    console.error(`Invalid log index: ${index}`);
+    console.log(`Invalid log index: ${index}`);
   }
 }
 
