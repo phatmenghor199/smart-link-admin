@@ -36,8 +36,8 @@ const sidebarItems = [
     icon: <Users className="h-5 w-5" />,
   },
   {
-    title: "History",
-    href: "/history",
+    title: "Shop Admin",
+    href: "/shop-admin",
     icon: <History className="h-5 w-5" />,
   },
   {

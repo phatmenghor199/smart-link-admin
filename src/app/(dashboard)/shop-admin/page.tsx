@@ -44,7 +44,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAllUserService, UserFilterOptions } from "@/services/users.service";
+import {
+  getAllShopAdminService,
+  UserFilterOptions,
+} from "@/services/users.service";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import {
@@ -53,10 +56,9 @@ import {
 } from "@/models/user/user-profile.model";
 import {
   SUBSCRIPTION_OPTIONS,
-  USER_ROLE_OPTIONS,
   USER_STATUS_OPTIONS,
 } from "@/constants/filter-user";
-import { userTableHeader } from "@/constants/table-header.ts/customer";
+import { shopAdminTableHeader } from "@/constants/table-header.ts/customer";
 
 export default function UsersPage() {
   const router = useRouter();
@@ -65,7 +67,6 @@ export default function UsersPage() {
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [subscriptionFilter, setSubscriptionFilter] = useState("ALL");
 
@@ -77,7 +78,6 @@ export default function UsersPage() {
   // Reset all filters
   const resetAllFilters = () => {
     setSearchQuery("");
-    setRoleFilter("ALL");
     setStatusFilter("ALL");
     setSubscriptionFilter("ALL");
   };
@@ -87,9 +87,9 @@ export default function UsersPage() {
     async (param: UserFilterOptions) => {
       setIsLoading(true);
 
-      const response = await getAllUserService({
+      const response = await getAllShopAdminService({
         search: searchQuery,
-        role: roleFilter === "ALL" ? undefined : roleFilter,
+        role: "SHOP_ADMIN",
         status: statusFilter === "ALL" ? undefined : statusFilter,
         hasActiveSubscription:
           subscriptionFilter === "ALL"
@@ -106,12 +106,12 @@ export default function UsersPage() {
       }
       setIsLoading(false);
     },
-    [searchQuery, roleFilter, statusFilter, subscriptionFilter]
+    [searchQuery, statusFilter, subscriptionFilter]
   );
 
   useEffect(() => {
     loadUsers({});
-  }, [searchQuery, roleFilter, statusFilter, subscriptionFilter, loadUsers]);
+  }, [searchQuery, statusFilter, subscriptionFilter, loadUsers]);
 
   const handleNextPage = () => {
     if (users && users.pageNo < users.totalPages - 1) {
@@ -131,7 +131,7 @@ export default function UsersPage() {
   return (
     <div className="container px-4 pb-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Shop Admin</h1>
         <div className="flex items-center space-x-2">
           {/* Reset Filters Button */}
           <Button
@@ -144,8 +144,8 @@ export default function UsersPage() {
           </Button>
 
           {/* Add User Button */}
-          <Button onClick={() => router.push("/users/new")}>
-            <Plus className="mr-2 h-4 w-4" /> Add User
+          <Button onClick={() => router.push("/shop-admin/new")}>
+            <Plus className="mr-2 h-4 w-4" /> Add Shop
           </Button>
         </div>
       </div>
@@ -163,20 +163,6 @@ export default function UsersPage() {
           />
         </div>
 
-        {/* Role Filter */}
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="User Role" />
-          </SelectTrigger>
-          <SelectContent>
-            {USER_ROLE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         {/* Status Filter */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
@@ -184,6 +170,23 @@ export default function UsersPage() {
           </SelectTrigger>
           <SelectContent>
             {USER_STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Subscription Filter */}
+        <Select
+          value={subscriptionFilter}
+          onValueChange={setSubscriptionFilter}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Subscription" />
+          </SelectTrigger>
+          <SelectContent>
+            {SUBSCRIPTION_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
@@ -204,7 +207,7 @@ export default function UsersPage() {
               <TableHeader>
                 <TableRow>
                   {/* Table Headers */}
-                  {userTableHeader.map((header) => (
+                  {shopAdminTableHeader.map((header) => (
                     <TableHead key={header}>{header}</TableHead>
                   ))}
                 </TableRow>
@@ -237,7 +240,21 @@ export default function UsersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
-                      <TableCell className="text-left">
+                      <TableCell>
+                        <Badge
+                          variant={
+                            user.hasActiveSubscription ? "default" : "secondary"
+                          }
+                        >
+                          {user.hasActiveSubscription
+                            ? "Active"
+                            : "No Subscription"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.activeSubscription?.daysRemaining ?? "N/A"}
+                      </TableCell>
+                      <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">

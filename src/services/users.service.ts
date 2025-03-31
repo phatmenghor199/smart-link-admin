@@ -115,6 +115,15 @@ export async function getAllUserService(param: UserFilterOptions) {
   }
 }
 
+export async function getAllShopAdminService(param: UserFilterOptions) {
+  try {
+    const response = await axiosClientWithAuth.post(`/v1/user/all`, param);
+    return response.data.data;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch a single user by ID with full details
  * @param userId User's unique identifier

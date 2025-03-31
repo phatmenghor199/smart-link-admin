@@ -155,7 +155,7 @@ export default function CreateUserPage() {
     defaultValues: {
       email: "",
       password: "",
-      role: "USER", // Default to regular user
+      role: "SHOP_ADMIN",
       status: "ACTIVE",
       shopName: "",
       shopLocation: "",

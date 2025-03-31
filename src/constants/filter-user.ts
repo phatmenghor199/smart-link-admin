@@ -9,7 +9,7 @@ export const USER_ROLE_OPTIONS = [
   { value: "ALL", label: "All Roles" },
   { value: "ADMIN", label: "Admin" },
   { value: "DEVELOPER", label: "Developer" },
-  { value: "SHOP_ADMIN", label: "Shop Admin" },
+  // { value: "SHOP_ADMIN", label: "Shop Admin" },
 ];
 
 export const SUBSCRIPTION_OPTIONS = [
