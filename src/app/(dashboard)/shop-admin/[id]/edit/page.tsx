@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import {
   DollarSign,
   Calendar,
   Ban,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +43,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   cancelSubscription,
   changePlan,
@@ -61,6 +62,10 @@ import { PlanModel } from "@/models/setting/plan-model";
 import { USER_STATUS } from "@/constants/key-page.ts/filter-user";
 import { UserStatus } from "@/constants/enum/user-enum";
 import { CancelSubscriptionDialog } from "@/components/users/cancel-subscription-dialog";
+import { ChangePlanDialog } from "@/components/users/change-plan-dialog";
+import { ExtendSubscriptionDialog } from "@/components/users/extend-subscription-dialog";
+import { Label } from "@/components/ui/label";
+import { updateShopInfoService } from "@/services/shop.service";
 
 // Define validation schemas for the different sections
 const userInfoSchema = z.object({
@@ -86,7 +91,6 @@ const subscriptionSchema = z.object({
   autoRenew: z.boolean().default(true),
   transactionId: z.string().optional(),
   amountPaid: z.number().min(0, "Amount paid cannot be negative").optional(),
-  extendDays: z.number().min(0, "Days must be a positive number").optional(),
 });
 
 // Combine the schemas
@@ -109,7 +113,10 @@ export default function EditShopAdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isExtendDialogOpen, setIsExtendDialogOpen] = useState(false);
+  const [isChangePlanDialogOpen, setIsChangePlanDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("userInfo");
 
   // Form handling
   const {
@@ -138,7 +145,6 @@ export default function EditShopAdminPage() {
         autoRenew: true,
         transactionId: "",
         amountPaid: 0,
-        extendDays: 0,
       },
     },
   });
@@ -146,76 +152,90 @@ export default function EditShopAdminPage() {
   const watchPassword = watch("userInfo.password");
   const watchPlanId = watch("subscriptionInfo.planId");
 
+  const loadData = useCallback(async () => {
+    try {
+      const userId = Number(params.id);
+
+      if (isNaN(userId)) {
+        throw new Error("Invalid user ID");
+      }
+
+      // Load user data
+      const fetchedUser = await fetchUserById({ userId });
+
+      if (!fetchedUser) {
+        throw new Error("User not found");
+      }
+
+      // Verify the user is a SHOP_ADMIN
+      if (fetchedUser.userRole !== "SHOP_ADMIN") {
+        throw new Error("The specified user is not a shop admin");
+      }
+
+      setUser(fetchedUser);
+
+      // Load available plans
+      const plans = await fetchAllPlans();
+      if (plans && plans.content) {
+        setAvailablePlans(plans.content);
+      }
+
+      // Reset form with fetched data
+      reset({
+        userInfo: {
+          id: fetchedUser.id,
+          email: fetchedUser.username,
+          status: fetchedUser.status || "ACTIVE",
+          password: "",
+          confirmPassword: "",
+        },
+        shopInfo: fetchedUser.shop
+          ? {
+              name: fetchedUser.shop.name,
+              location: fetchedUser.shop.location,
+            }
+          : undefined,
+
+        subscriptionInfo: fetchedUser.activeSubscription
+          ? {
+              planId: fetchedUser.activeSubscription.plan.id,
+              autoRenew: fetchedUser.activeSubscription.autoRenew,
+              transactionId: fetchedUser.activeSubscription.transactionId,
+              amountPaid: fetchedUser.activeSubscription.amountPaid,
+            }
+          : undefined,
+      });
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load data"
+      );
+      toast.error("Failed to load shop admin details");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [params.id, reset]);
+
+  const selectedPlanId = watch("subscriptionInfo.planId");
+
   // Load user details and plans
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        // Convert string ID to number
-        const userId = Number(params.id);
-
-        if (isNaN(userId)) {
-          throw new Error("Invalid user ID");
-        }
-
-        // Load user data
-        const fetchedUser = await fetchUserById({ userId });
-
-        if (!fetchedUser) {
-          throw new Error("User not found");
-        }
-
-        // Verify the user is a SHOP_ADMIN
-        if (fetchedUser.userRole !== "SHOP_ADMIN") {
-          throw new Error("The specified user is not a shop admin");
-        }
-
-        setUser(fetchedUser);
-
-        // Load available plans
-        const plans = await fetchAllPlans();
-        if (plans && plans.content) {
-          setAvailablePlans(plans.content);
-        }
-
-        // Reset form with fetched data
-        reset({
-          userInfo: {
-            id: fetchedUser.id,
-            email: fetchedUser.username,
-            status: fetchedUser.status || "ACTIVE",
-            password: "",
-            confirmPassword: "",
-          },
-          shopInfo: fetchedUser.shop
-            ? {
-                name: fetchedUser.shop.name,
-                location: fetchedUser.shop.location,
-              }
-            : undefined,
-          subscriptionInfo: fetchedUser.activeSubscription
-            ? {
-                planId: fetchedUser.activeSubscription.plan.id,
-                autoRenew: fetchedUser.activeSubscription.autoRenew,
-                transactionId: fetchedUser.activeSubscription.transactionId,
-                amountPaid: fetchedUser.activeSubscription.amountPaid,
-                extendDays: 0,
-              }
-            : undefined,
-        });
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load data"
-        );
-        toast.error("Failed to load shop admin details");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadData();
-  }, [params.id, reset]);
+  }, [loadData]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const tab = url.searchParams.get("tab");
+    if (tab) {
+      setSelectedTab(tab);
+    }
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", selectedTab);
+    window.history.pushState({}, "", url);
+  }, [selectedTab]);
 
   // Update amount paid when plan changes
   useEffect(() => {
@@ -276,7 +296,7 @@ export default function EditShopAdminPage() {
 
       // 3. Update shop info if provided
       if (data.shopInfo && user?.shop) {
-        const shopUpdateResult = await updateShopInfo(
+        const shopUpdateResult = await updateShopInfoService(
           user.shop.id,
           data.shopInfo
         );
@@ -285,66 +305,6 @@ export default function EditShopAdminPage() {
           throw new Error(
             shopUpdateResult.error || "Failed to update shop information"
           );
-        }
-      }
-
-      // 4. Update subscription if provided
-      if (data.subscriptionInfo && user?.activeSubscription && user?.id) {
-        // Handle subscription update or extension
-        if (
-          data.subscriptionInfo.extendDays &&
-          data.subscriptionInfo.extendDays > 0
-        ) {
-          // Extend subscription
-          const extensionResult = await extendSubscription({
-            userId: user.id,
-            transactionId:
-              data.subscriptionInfo.transactionId || `EXT-${Date.now()}`,
-            amountPaid: data.subscriptionInfo.amountPaid || 0,
-            notes: "Extended from admin panel",
-          });
-
-          if (!extensionResult.success) {
-            throw new Error(
-              extensionResult.message || "Failed to extend subscription"
-            );
-          }
-        } else if (
-          data.subscriptionInfo.planId !== user.activeSubscription.plan.id
-        ) {
-          // Change plan
-          const changePlanResult = await changePlan({
-            userId: user.id,
-            newPlanId: data.subscriptionInfo.planId!,
-            transactionId:
-              data.subscriptionInfo.transactionId || `CHANGE-${Date.now()}`,
-            amountPaid: data.subscriptionInfo.amountPaid || 0,
-            notes: "Plan changed from admin panel",
-          });
-
-          if (!changePlanResult.success) {
-            throw new Error(
-              changePlanResult.message || "Failed to change subscription plan"
-            );
-          }
-        } else {
-          // Update auto-renew setting
-          // Note: This would need a separate API endpoint to just update auto-renew setting
-          // For now, we'll assume this might be handled by reapplying the same plan
-          const changePlanResult = await changePlan({
-            userId: user.id,
-            newPlanId: data.subscriptionInfo.planId!,
-            transactionId:
-              data.subscriptionInfo.transactionId || `UPDATE-${Date.now()}`,
-            amountPaid: 0, // No charge for just changing auto-renew
-            notes: "Updated subscription settings from admin panel",
-          });
-
-          if (!changePlanResult.success) {
-            throw new Error(
-              changePlanResult.message || "Failed to update subscription"
-            );
-          }
         }
       }
 
@@ -383,13 +343,66 @@ export default function EditShopAdminPage() {
     }
   };
 
-  // Helper to get selected plan details
-  const getSelectedPlan = () => {
-    const planId = watch("subscriptionInfo.planId");
-    return planId ? availablePlans.find((plan) => plan.id === planId) : null;
+  const handleExtendSubscription = async (data: {
+    days: number;
+    transactionId?: string;
+    amountPaid: number;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      const result = await extendSubscription({
+        userId: user.id,
+        transactionId: data.transactionId || `EXT-${user.id}-${Date.now()}`,
+        amountPaid: data.amountPaid,
+        notes: data.notes,
+      });
+
+      if (result.success) {
+        toast.success("Subscription extended successfully");
+        setIsExtendDialogOpen(false);
+        // Reload user data to show updated subscription information
+        loadData();
+      } else {
+        toast.error(result.message || "Failed to extend subscription");
+      }
+    } catch (error) {
+      console.error("Error extending subscription:", error);
+      toast.error("An unexpected error occurred");
+    }
   };
 
-  const selectedPlan = getSelectedPlan();
+  const handleChangePlan = async (data: {
+    newPlanId: number;
+    transactionId?: string;
+    amountPaid: number;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      const result = await changePlan({
+        userId: user.id,
+        newPlanId: data.newPlanId,
+        transactionId: data.transactionId || `CHANGE-${user.id}-${Date.now()}`,
+        amountPaid: data.amountPaid,
+        notes: data.notes,
+      });
+
+      if (result.success) {
+        toast.success("Plan changed successfully");
+        setIsChangePlanDialogOpen(false);
+        // Reload user data to show updated subscription information
+        loadData();
+      } else {
+        toast.error(result.message || "Failed to change plan");
+      }
+    } catch (error) {
+      console.error("Error changing plan:", error);
+      toast.error("An unexpected error occurred");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -420,11 +433,16 @@ export default function EditShopAdminPage() {
     );
   }
 
+  // Get the selected plan details
+  const selectedPlan = selectedPlanId
+    ? availablePlans.find((plan) => plan.id === selectedPlanId)
+    : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="container mx-auto px-4 py-8"
+      className="container mx-auto px-4 pb-8"
     >
       {/* Page Header */}
       <div className="flex items-center mb-6 space-x-4">
@@ -452,7 +470,12 @@ export default function EditShopAdminPage() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Tabs defaultValue="userInfo" className="space-y-6">
+        <Tabs
+          defaultValue="userInfo"
+          className="space-y-6"
+          onValueChange={(value) => setSelectedTab(value)}
+          value={selectedTab}
+        >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="userInfo" className="flex items-center gap-2">
               <UserIcon className="h-4 w-4" />
@@ -814,55 +837,95 @@ export default function EditShopAdminPage() {
 
                     <Separator />
 
+                    <div className="flex justify-between space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsExtendDialogOpen(true)}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Extend Subscription
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setIsChangePlanDialogOpen(true)}
+                      >
+                        <Package className="mr-2 h-4 w-4" />
+                        Change Plan
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => setIsCancelDialogOpen(true)}
+                      >
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancel Subscription
+                      </Button>
+                    </div>
+
+                    <Separator />
+
                     <div className="space-y-4">
                       <h4 className="font-medium">Subscription Options</h4>
-
                       <div className="grid md:grid-cols-2 gap-6">
-                        {/* Plan Selection */}
+                        {/* Amount Paid */}
                         <div className="space-y-2">
                           <Label
-                            htmlFor="subscriptionInfo.planId"
+                            htmlFor="subscriptionInfo.amountPaid"
                             className="flex items-center"
                           >
-                            <Package className="mr-2 h-4 w-4 text-muted-foreground" />
-                            Change Plan
+                            <DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Amount Paid
                           </Label>
                           <Controller
-                            name="subscriptionInfo.planId"
+                            name="subscriptionInfo.amountPaid"
                             control={control}
                             render={({ field }) => (
-                              <Select
-                                value={field.value?.toString()}
-                                onValueChange={(value) =>
-                                  field.onChange(Number(value))
+                              <Input
+                                {...field}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={field.value?.toString() || "0"}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    parseFloat(e.target.value) || 0
+                                  )
                                 }
                                 disabled={isSubmitting}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a plan" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {availablePlans
-                                    .filter((plan) => plan.status === "ACTIVE")
-                                    .map((plan) => (
-                                      <SelectItem
-                                        key={plan.id}
-                                        value={plan.id.toString()}
-                                      >
-                                        <div className="flex items-center justify-between w-full">
-                                          <span>{plan.name}</span>
-                                          <span className="text-muted-foreground ml-2">
-                                            ${plan.price}/month
-                                          </span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
+                              />
                             )}
                           />
                         </div>
 
+                        {/* Transaction ID */}
+                        <div className="space-y-2">
+                          <Label
+                            htmlFor="subscriptionInfo.transactionId"
+                            className="flex items-center"
+                          >
+                            <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Transaction ID
+                          </Label>
+                          <Controller
+                            name="subscriptionInfo.transactionId"
+                            control={control}
+                            render={({ field }) => (
+                              <Input
+                                {...field}
+                                placeholder="Transaction ID for the change or extension"
+                                disabled={isSubmitting}
+                              />
+                            )}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Optional: Will be auto-generated if left empty
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-6 mt-4">
                         {/* Auto-Renew */}
                         <div className="space-y-2">
                           <Label
@@ -899,193 +962,287 @@ export default function EditShopAdminPage() {
                           />
                         </div>
                       </div>
-
-                      <div className="grid md:grid-cols-2 gap-6 mt-4">
-                        {/* Extend Days */}
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="subscriptionInfo.extendDays"
-                            className="flex items-center"
-                          >
-                            <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-                            Extend Subscription (Days)
-                          </Label>
-                          <Controller
-                            name="subscriptionInfo.extendDays"
-                            control={control}
-                            render={({ field }) => (
-                              <Input
-                                {...field}
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={field.value?.toString() || "0"}
-                                onChange={(e) =>
-                                  field.onChange(parseInt(e.target.value) || 0)
-                                }
-                                disabled={isSubmitting}
-                              />
-                            )}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Enter days to extend the current subscription
-                          </p>
-                        </div>
-
-                        {/* Amount Paid */}
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="subscriptionInfo.amountPaid"
-                            className="flex items-center"
-                          >
-                            <DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
-                            Amount Paid
-                          </Label>
-                          <Controller
-                            name="subscriptionInfo.amountPaid"
-                            control={control}
-                            render={({ field }) => (
-                              <Input
-                                {...field}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={field.value?.toString() || "0"}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                disabled={isSubmitting}
-                              />
-                            )}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Transaction ID */}
-                      <div className="space-y-2 mt-4">
-                        <Label
-                          htmlFor="subscriptionInfo.transactionId"
-                          className="flex items-center"
-                        >
-                          <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
-                          Transaction ID
-                        </Label>
-                        <Controller
-                          name="subscriptionInfo.transactionId"
-                          control={control}
-                          render={({ field }) => (
-                            <Input
-                              {...field}
-                              placeholder="Transaction ID for the change or extension"
-                              disabled={isSubmitting}
-                            />
-                          )}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Optional: Will be auto-generated if left empty
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Selected Plan Details */}
-                    {selectedPlan &&
-                      selectedPlan.id !== user.activeSubscription.plan.id && (
-                        <div className="mt-4 p-4 bg-muted/40 rounded-lg border">
-                          <h4 className="font-medium mb-2">New Plan Details</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
-                                Name:
-                              </span>
-                              <span className="font-medium">
-                                {selectedPlan.name}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
-                                Price:
-                              </span>
-                              <span className="font-medium">
-                                ${selectedPlan.price}/month
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
-                                Duration:
-                              </span>
-                              <span className="font-medium">
-                                {selectedPlan.durationDays} days
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
-                                Description:
-                              </span>
-                              <span className="text-sm max-w-xs text-right">
-                                {selectedPlan.description}
-                              </span>
-                            </div>
-                            <div className="pt-2 flex flex-wrap gap-2 justify-end">
-                              {selectedPlan.allowBanners && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-primary/10"
-                                >
-                                  Banners
-                                </Badge>
-                              )}
-                              {selectedPlan.allowPromotions && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-primary/10"
-                                >
-                                  Promotions
-                                </Badge>
-                              )}
-                              {selectedPlan.allowDelivery && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-primary/10"
-                                >
-                                  Delivery
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Cancel Subscription */}
-                    <div className="mt-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
-                      <h4 className="font-medium text-destructive mb-2">
-                        Danger Zone
-                      </h4>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Cancelling a subscription will immediately remove the
-                        user&apos;s access to premium features. This action
-                        cannot be undone.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={() => setIsCancelDialogOpen(true)}
-                        disabled={isSubmitting}
-                      >
-                        <Ban className="mr-2 h-4 w-4" />
-                        Cancel Subscription
-                      </Button>
                     </div>
                   </>
                 ) : (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      No active subscription found for this shop admin.
-                    </AlertDescription>
-                  </Alert>
+                  <div>
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        No active subscription found for this shop admin.
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* Subscription Details Card */}
+                    <Card className="mt-4">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-primary" />
+                          Subscription Details
+                        </CardTitle>
+                        <CardDescription>
+                          Select a subscription plan for the shop
+                        </CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        {availablePlans.length === 0 ? (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>
+                              No subscription plans available
+                            </AlertTitle>
+                            <AlertDescription>
+                              Unable to load subscription plans. Please create
+                              or activate plans first.
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <div className="space-y-6">
+                            <div className="grid md:grid-cols-2 gap-6">
+                              {/* Plan Selection */}
+                              <div className="space-y-2">
+                                <Label htmlFor="subscriptionInfo.planId">
+                                  <Package className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  Select Plan
+                                </Label>
+                                <Controller
+                                  name="subscriptionInfo.planId"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Select
+                                      value={
+                                        field.value !== undefined
+                                          ? field.value.toString()
+                                          : undefined
+                                      }
+                                      onValueChange={(value) => {
+                                        field.onChange(Number(value));
+                                      }}
+                                      disabled={isSubmitting}
+                                    >
+                                      <SelectTrigger
+                                        id="planId"
+                                        className="w-full"
+                                      >
+                                        <SelectValue placeholder="Choose a subscription plan" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availablePlans.map((plan) => (
+                                          <SelectItem
+                                            key={plan.id}
+                                            value={plan.id.toString()}
+                                          >
+                                            <div className="flex items-center justify-between w-full pr-6">
+                                              <span>{plan.name}</span>
+                                              <span className="text-muted-foreground ml-2">
+                                                ${plan.price}/month
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                />
+                                {errors.subscriptionInfo?.planId && (
+                                  <p className="text-sm text-destructive flex items-center gap-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    {errors.subscriptionInfo?.planId.message?.toString()}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Auto Renew Selection */}
+                              <div className="space-y-2">
+                                <Label htmlFor="subscriptionInfo.autoRenew">
+                                  <ShieldCheck className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  Auto Renew
+                                </Label>
+                                <Controller
+                                  name="subscriptionInfo.autoRenew"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Select
+                                      value={field.value ? "true" : "false"}
+                                      onValueChange={(value) => {
+                                        field.onChange(value === "true");
+                                      }}
+                                      disabled={isSubmitting}
+                                    >
+                                      <SelectTrigger id="autoRenew">
+                                        <SelectValue placeholder="Auto Renew" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="true">
+                                          Enabled (Recommended)
+                                        </SelectItem>
+                                        <SelectItem value="false">
+                                          Disabled
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                />
+                                {errors.subscriptionInfo?.autoRenew && (
+                                  <p className="text-sm text-destructive flex items-center gap-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    {errors.subscriptionInfo?.autoRenew.message?.toString()}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Transaction ID and Amount Paid */}
+                            <div className="grid md:grid-cols-2 gap-6">
+                              {/* Transaction ID */}
+                              <div className="space-y-2">
+                                <Label htmlFor="subscriptionInfo.transactionId">
+                                  <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  Transaction ID
+                                </Label>
+                                <Controller
+                                  name="subscriptionInfo.transactionId"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Input
+                                      id="subscriptionInfo.transactionId"
+                                      {...field}
+                                      placeholder="Transaction ID"
+                                      disabled={isSubmitting}
+                                      aria-invalid={
+                                        !!errors.subscriptionInfo?.transactionId
+                                      }
+                                    />
+                                  )}
+                                />
+                                {errors.subscriptionInfo?.transactionId && (
+                                  <p className="text-sm text-destructive flex items-center gap-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    {errors.subscriptionInfo?.transactionId.message?.toString()}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  A unique identifier for this transaction
+                                </p>
+                              </div>
+
+                              {/* Amount Paid */}
+                              <div className="space-y-2">
+                                <Label htmlFor="subscriptionInfo.amountPaid">
+                                  <DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  Amount Paid
+                                </Label>
+                                <Controller
+                                  name="subscriptionInfo.amountPaid"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Input
+                                      id="amountPaid"
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      {...field}
+                                      value={field.value?.toString() || "0"}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseFloat(e.target.value) || 0
+                                        )
+                                      }
+                                      placeholder="0.00"
+                                      disabled={isSubmitting}
+                                      aria-invalid={
+                                        !!errors.subscriptionInfo?.amountPaid
+                                      }
+                                    />
+                                  )}
+                                />
+                                {errors.subscriptionInfo?.amountPaid && (
+                                  <p className="text-sm text-destructive flex items-center gap-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    {errors.subscriptionInfo?.amountPaid.message?.toString()}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  Amount paid for this subscription
+                                  (automatically set to plan price)
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Plan Details - Show details of selected plan */}
+                            {selectedPlan && (
+                              <div className="mt-4 p-4 bg-muted/40 rounded-lg border">
+                                <h4 className="font-medium mb-2">
+                                  Plan Details
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Name:
+                                    </span>
+                                    <span className="font-medium">
+                                      {selectedPlan.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Price:
+                                    </span>
+                                    <span className="font-medium">
+                                      ${selectedPlan.price}/month
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Duration:
+                                    </span>
+                                    <span className="font-medium">
+                                      {selectedPlan.durationDays} days
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Description:
+                                    </span>
+                                    <span className="text-sm max-w-xs text-right">
+                                      {selectedPlan.description}
+                                    </span>
+                                  </div>
+                                  <div className="pt-2 flex flex-wrap gap-2 justify-end">
+                                    {selectedPlan.allowBanners && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-primary/10"
+                                      >
+                                        Banners
+                                      </Badge>
+                                    )}
+                                    {selectedPlan.allowPromotions && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-primary/10"
+                                      >
+                                        Promotions
+                                      </Badge>
+                                    )}
+                                    {selectedPlan.allowDelivery && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-primary/10"
+                                      >
+                                        Delivery
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1118,6 +1275,26 @@ export default function EditShopAdminPage() {
         </div>
       </form>
 
+      {/* Extend Subscription Dialog */}
+      {user.hasActiveSubscription && user.activeSubscription && (
+        <ExtendSubscriptionDialog
+          user={user}
+          isOpen={isExtendDialogOpen}
+          onClose={() => setIsExtendDialogOpen(false)}
+          onSubmit={handleExtendSubscription}
+        />
+      )}
+
+      {/* Change Plan Dialog */}
+      {user.hasActiveSubscription && user.activeSubscription && (
+        <ChangePlanDialog
+          user={user}
+          isOpen={isChangePlanDialogOpen}
+          onClose={() => setIsChangePlanDialogOpen(false)}
+          onSubmit={handleChangePlan}
+        />
+      )}
+
       {/* Cancel Subscription Dialog */}
       {user.activeSubscription && (
         <CancelSubscriptionDialog
@@ -1130,10 +1307,3 @@ export default function EditShopAdminPage() {
     </motion.div>
   );
 }
-
-// Simple Label component
-const Label = ({ children, ...props }: React.ComponentProps<"label">) => (
-  <label {...props} className="flex items-center text-sm font-medium">
-    {children}
-  </label>
-);

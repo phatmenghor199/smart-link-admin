@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -59,11 +59,7 @@ export default function ShopAdminDetailPage() {
   const [isChangePlanDialogOpen, setIsChangePlanDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
-  useEffect(() => {
-    loadUserDetails();
-  }, [params.id, router]);
-
-  const loadUserDetails = async () => {
+  const loadUserDetails = useCallback(async () => {
     try {
       // Convert string ID to number
       const userId = Number(params.id);
@@ -97,7 +93,11 @@ export default function ShopAdminDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    loadUserDetails();
+  }, [loadUserDetails, params.id, router]);
 
   const handleEditUser = () => {
     if (user) {
@@ -527,7 +527,7 @@ export default function ShopAdminDetailPage() {
       )}
 
       {/* Cancel Subscription Dialog */}
-      {user.hasActiveSubscription && user.activeSubscription && (
+      {user.activeSubscription && (
         <CancelSubscriptionDialog
           user={user}
           isOpen={isCancelDialogOpen}

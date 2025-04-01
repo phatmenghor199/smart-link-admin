@@ -137,6 +137,7 @@ export function ExtendSubscriptionDialog({
                     type="number"
                     {...field}
                     value={field.value || ""}
+                    readOnly
                     onChange={(e) =>
                       field.onChange(parseInt(e.target.value) || 0)
                     }
