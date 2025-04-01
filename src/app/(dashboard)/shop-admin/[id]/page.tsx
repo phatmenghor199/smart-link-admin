@@ -1,3 +1,5 @@
+// src/app/(dashboard)/shop-admin/[id]/page.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,6 +17,7 @@ import {
   Pencil,
   RefreshCw,
   AlertCircle,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +34,20 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { UserProfileModel } from "@/models/user/user-profile.model";
-import { fetchUserById } from "@/services/users.service";
+import {
+  cancelSubscription,
+  changePlan,
+  extendSubscription,
+  fetchUserById,
+} from "@/services/users.service";
+import { CancelSubscriptionDialog } from "@/components/users/cancel-subscription-dialog";
+import { ChangePlanDialog } from "@/components/users/change-plan-dialog";
+import { ExtendSubscriptionDialog } from "@/components/users/extend-subscription-dialog";
+// import {
+//   extendSubscription,
+//   changePlan,
+//   cancelSubscription,
+// } from "@/services/subscription.service";
 
 export default function ShopAdminDetailPage() {
   const params = useParams();
@@ -39,50 +55,155 @@ export default function ShopAdminDetailPage() {
   const [user, setUser] = useState<UserProfileModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExtendDialogOpen, setIsExtendDialogOpen] = useState(false);
+  const [isChangePlanDialogOpen, setIsChangePlanDialogOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
   useEffect(() => {
-    const loadUserDetails = async () => {
-      try {
-        // Convert string ID to number
-        const userId = Number(params.id);
-
-        if (isNaN(userId)) {
-          setError("Invalid user ID");
-          toast.error("Invalid user ID");
-          return;
-        }
-
-        const fetchedUser = await fetchUserById({ userId });
-
-        if (!fetchedUser) {
-          setError("Shop admin not found");
-          toast.error("Shop admin not found");
-          return;
-        }
-
-        // Verify the user is a SHOP_ADMIN
-        if (fetchedUser.userRole !== "SHOP_ADMIN") {
-          setError("The specified user is not a shop admin");
-          toast.error("The specified user is not a shop admin");
-          return;
-        }
-
-        setUser(fetchedUser);
-      } catch (error) {
-        console.error("Failed to fetch shop admin details:", error);
-        setError("Failed to load shop admin details");
-        toast.error("Failed to load shop admin details");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadUserDetails();
   }, [params.id, router]);
+
+  const loadUserDetails = async () => {
+    try {
+      // Convert string ID to number
+      const userId = Number(params.id);
+
+      if (isNaN(userId)) {
+        setError("Invalid user ID");
+        toast.error("Invalid user ID");
+        return;
+      }
+
+      const fetchedUser = await fetchUserById({ userId });
+
+      if (!fetchedUser) {
+        setError("Shop admin not found");
+        toast.error("Shop admin not found");
+        return;
+      }
+
+      // Verify the user is a SHOP_ADMIN
+      if (fetchedUser.userRole !== "SHOP_ADMIN") {
+        setError("The specified user is not a shop admin");
+        toast.error("The specified user is not a shop admin");
+        return;
+      }
+
+      setUser(fetchedUser);
+    } catch (error) {
+      console.error("Failed to fetch shop admin details:", error);
+      setError("Failed to load shop admin details");
+      toast.error("Failed to load shop admin details");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleEditUser = () => {
     if (user) {
       router.push(`/shop-admin/${user.id}/edit`);
+    }
+  };
+
+  const handleExtendSubscription = async (data: {
+    days: number;
+    transactionId?: string;
+    amountPaid: number;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      const result = await extendSubscription({
+        userId: user.id,
+        transactionId: data.transactionId || `EXT-${user.id}-${Date.now()}`,
+        amountPaid: data.amountPaid,
+        notes: data.notes,
+      });
+
+      if (result.success) {
+        toast.success("Subscription extended successfully");
+        setIsExtendDialogOpen(false);
+        // Reload user data to show updated subscription information
+        loadUserDetails();
+      } else {
+        toast.error(result.message || "Failed to extend subscription");
+      }
+    } catch (error) {
+      console.error("Error extending subscription:", error);
+      toast.error("An unexpected error occurred");
+    }
+  };
+
+  const handleChangePlan = async (data: {
+    newPlanId: number;
+    transactionId?: string;
+    amountPaid: number;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      const result = await changePlan({
+        userId: user.id,
+        newPlanId: data.newPlanId,
+        transactionId: data.transactionId || `CHANGE-${user.id}-${Date.now()}`,
+        amountPaid: data.amountPaid,
+        notes: data.notes,
+      });
+
+      if (result.success) {
+        toast.success("Plan changed successfully");
+        setIsChangePlanDialogOpen(false);
+        // Reload user data to show updated subscription information
+        loadUserDetails();
+      } else {
+        toast.error(result.message || "Failed to change plan");
+      }
+    } catch (error) {
+      console.error("Error changing plan:", error);
+      toast.error("An unexpected error occurred");
+    }
+  };
+
+  const handleCancelSubscription = async (reason: string) => {
+    if (!user) return;
+
+    try {
+      const result = await cancelSubscription(user.id, reason);
+
+      if (result.success) {
+        toast.success("Subscription cancelled successfully");
+        setIsCancelDialogOpen(false);
+        // Reload user data to show updated subscription information
+        loadUserDetails();
+      } else {
+        toast.error(result.message || "Failed to cancel subscription");
+      }
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      toast.error("An unexpected error occurred");
+    }
+  };
+
+  // Calculate subscription days remaining (formatted)
+  const getSubscriptionStatus = () => {
+    if (!user?.hasActiveSubscription || !user?.activeSubscription) {
+      return <Badge variant="destructive">No Subscription</Badge>;
+    }
+
+    const daysRemaining = user.activeSubscription.daysRemaining;
+
+    if (daysRemaining <= 0) {
+      return <Badge variant="destructive">Expired</Badge>;
+    } else if (daysRemaining <= 7) {
+      return (
+        <Badge variant="default" className="bg-yellow-500 text-white">
+          Expiring Soon ({daysRemaining} days)
+        </Badge>
+      );
+    } else {
+      return <Badge variant="default">Active ({daysRemaining} days)</Badge>;
     }
   };
 
@@ -114,27 +235,6 @@ export default function ShopAdminDetailPage() {
       </div>
     );
   }
-
-  // Calculate subscription days remaining (formatted)
-  const getSubscriptionStatus = () => {
-    if (!user.hasActiveSubscription || !user.activeSubscription) {
-      return <Badge variant="destructive">No Subscription</Badge>;
-    }
-
-    const daysRemaining = user.activeSubscription.daysRemaining;
-
-    if (daysRemaining <= 0) {
-      return <Badge variant="destructive">Expired</Badge>;
-    } else if (daysRemaining <= 7) {
-      return (
-        <Badge variant="default" className="bg-yellow-500 text-white">
-          Expiring Soon ({daysRemaining} days)
-        </Badge>
-      );
-    } else {
-      return <Badge variant="default">Active ({daysRemaining} days)</Badge>;
-    }
-  };
 
   return (
     <motion.div
@@ -385,29 +485,56 @@ export default function ShopAdminDetailPage() {
             <CardFooter className="flex justify-end space-x-2">
               <Button
                 variant="outline"
-                onClick={() =>
-                  toast.info(
-                    "Extend subscription functionality would be implemented here"
-                  )
-                }
+                onClick={() => setIsExtendDialogOpen(true)}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Extend Subscription
               </Button>
-              <Button
-                onClick={() =>
-                  toast.info(
-                    "Change plan functionality would be implemented here"
-                  )
-                }
-              >
+              <Button onClick={() => setIsChangePlanDialogOpen(true)}>
                 <Package className="mr-2 h-4 w-4" />
                 Change Plan
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setIsCancelDialogOpen(true)}
+              >
+                <Ban className="mr-2 h-4 w-4" />
+                Cancel Subscription
               </Button>
             </CardFooter>
           )}
         </Card>
       </div>
+
+      {/* Extend Subscription Dialog */}
+      {user.hasActiveSubscription && user.activeSubscription && (
+        <ExtendSubscriptionDialog
+          user={user}
+          isOpen={isExtendDialogOpen}
+          onClose={() => setIsExtendDialogOpen(false)}
+          onSubmit={handleExtendSubscription}
+        />
+      )}
+
+      {/* Change Plan Dialog */}
+      {user.hasActiveSubscription && user.activeSubscription && (
+        <ChangePlanDialog
+          user={user}
+          isOpen={isChangePlanDialogOpen}
+          onClose={() => setIsChangePlanDialogOpen(false)}
+          onSubmit={handleChangePlan}
+        />
+      )}
+
+      {/* Cancel Subscription Dialog */}
+      {user.hasActiveSubscription && user.activeSubscription && (
+        <CancelSubscriptionDialog
+          user={user}
+          isOpen={isCancelDialogOpen}
+          onClose={() => setIsCancelDialogOpen(false)}
+          onSubmit={handleCancelSubscription}
+        />
+      )}
     </motion.div>
   );
 }

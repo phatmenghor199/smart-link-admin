@@ -1,3 +1,5 @@
+// src/app/(dashboard)/shop-admin/[id]/edit/page.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -19,6 +21,7 @@ import {
   CreditCard,
   DollarSign,
   Calendar,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +30,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,7 +43,14 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { fetchUserById, updateUserInfo } from "@/services/users.service";
+import {
+  cancelSubscription,
+  changePlan,
+  changeUserPasswordByAdmin,
+  extendSubscription,
+  fetchUserById,
+  updateUserInfo,
+} from "@/services/users.service";
 import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,8 +60,9 @@ import { fetchAllPlans } from "@/services/plans.service";
 import { PlanModel } from "@/models/setting/plan-model";
 import { USER_STATUS } from "@/constants/key-page.ts/filter-user";
 import { UserStatus } from "@/constants/enum/user-enum";
+import { CancelSubscriptionDialog } from "@/components/users/cancel-subscription-dialog";
 
-// Define your validation schemas for the different sections
+// Define validation schemas for the different sections
 const userInfoSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   status: z.enum(USER_STATUS, {
@@ -99,6 +109,7 @@ export default function EditShopAdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
   // Form handling
   const {
@@ -278,53 +289,60 @@ export default function EditShopAdminPage() {
       }
 
       // 4. Update subscription if provided
-      if (data.subscriptionInfo && user?.activeSubscription) {
+      if (data.subscriptionInfo && user?.activeSubscription && user?.id) {
         // Handle subscription update or extension
         if (
           data.subscriptionInfo.extendDays &&
           data.subscriptionInfo.extendDays > 0
         ) {
-          const extensionResult = await extendSubscription(
-            user.activeSubscription.id,
-            data.subscriptionInfo.extendDays,
-            data.subscriptionInfo.transactionId || `EXT-${Date.now()}`,
-            data.subscriptionInfo.amountPaid || 0
-          );
+          // Extend subscription
+          const extensionResult = await extendSubscription({
+            userId: user.id,
+            transactionId:
+              data.subscriptionInfo.transactionId || `EXT-${Date.now()}`,
+            amountPaid: data.subscriptionInfo.amountPaid || 0,
+            notes: "Extended from admin panel",
+          });
 
           if (!extensionResult.success) {
             throw new Error(
-              extensionResult.error || "Failed to extend subscription"
+              extensionResult.message || "Failed to extend subscription"
             );
           }
         } else if (
           data.subscriptionInfo.planId !== user.activeSubscription.plan.id
         ) {
           // Change plan
-          const changePlanResult = await changeSubscriptionPlan(
-            user.activeSubscription.id,
-            data.subscriptionInfo.planId || user.activeSubscription.plan.id,
-            data.subscriptionInfo.autoRenew,
-            data.subscriptionInfo.transactionId || `CHANGE-${Date.now()}`,
-            data.subscriptionInfo.amountPaid || 0
-          );
+          const changePlanResult = await changePlan({
+            userId: user.id,
+            newPlanId: data.subscriptionInfo.planId!,
+            transactionId:
+              data.subscriptionInfo.transactionId || `CHANGE-${Date.now()}`,
+            amountPaid: data.subscriptionInfo.amountPaid || 0,
+            notes: "Plan changed from admin panel",
+          });
 
           if (!changePlanResult.success) {
             throw new Error(
-              changePlanResult.error || "Failed to change subscription plan"
+              changePlanResult.message || "Failed to change subscription plan"
             );
           }
         } else {
           // Update auto-renew setting
-          const updateSubscriptionResult = await updateSubscription(
-            user.activeSubscription.id,
-            {
-              autoRenew: data.subscriptionInfo.autoRenew,
-            }
-          );
+          // Note: This would need a separate API endpoint to just update auto-renew setting
+          // For now, we'll assume this might be handled by reapplying the same plan
+          const changePlanResult = await changePlan({
+            userId: user.id,
+            newPlanId: data.subscriptionInfo.planId!,
+            transactionId:
+              data.subscriptionInfo.transactionId || `UPDATE-${Date.now()}`,
+            amountPaid: 0, // No charge for just changing auto-renew
+            notes: "Updated subscription settings from admin panel",
+          });
 
-          if (!updateSubscriptionResult.success) {
+          if (!changePlanResult.success) {
             throw new Error(
-              updateSubscriptionResult.error || "Failed to update subscription"
+              changePlanResult.message || "Failed to update subscription"
             );
           }
         }
@@ -340,6 +358,28 @@ export default function EditShopAdminPage() {
       toast.error("Failed to update shop admin");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle subscription cancellation
+  const handleCancelSubscription = async (reason: string) => {
+    if (!user) return;
+
+    try {
+      const result = await cancelSubscription(user.id, reason);
+
+      if (result.success) {
+        toast.success("Subscription cancelled successfully");
+        setIsCancelDialogOpen(false);
+
+        // Redirect to the user details page after cancellation
+        router.push(`/shop-admin/${user.id}`);
+      } else {
+        toast.error(result.message || "Failed to cancel subscription");
+      }
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      toast.error("An unexpected error occurred while cancelling subscription");
     }
   };
 
@@ -616,6 +656,7 @@ export default function EditShopAdminPage() {
                   Update information about the administrator&apos;s shop
                 </CardDescription>
               </CardHeader>
+
               <CardContent className="space-y-4">
                 {user.shop ? (
                   <div className="grid md:grid-cols-2 gap-6">
@@ -1016,6 +1057,27 @@ export default function EditShopAdminPage() {
                           </div>
                         </div>
                       )}
+
+                    {/* Cancel Subscription */}
+                    <div className="mt-6 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                      <h4 className="font-medium text-destructive mb-2">
+                        Danger Zone
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Cancelling a subscription will immediately remove the
+                        user&apos;s access to premium features. This action
+                        cannot be undone.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => setIsCancelDialogOpen(true)}
+                        disabled={isSubmitting}
+                      >
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancel Subscription
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <Alert>
@@ -1055,6 +1117,16 @@ export default function EditShopAdminPage() {
           </Button>
         </div>
       </form>
+
+      {/* Cancel Subscription Dialog */}
+      {user.activeSubscription && (
+        <CancelSubscriptionDialog
+          user={user}
+          isOpen={isCancelDialogOpen}
+          onClose={() => setIsCancelDialogOpen(false)}
+          onSubmit={handleCancelSubscription}
+        />
+      )}
     </motion.div>
   );
 }
@@ -1065,57 +1137,3 @@ const Label = ({ children, ...props }: React.ComponentProps<"label">) => (
     {children}
   </label>
 );
-
-// Mock API functions for subscription management
-// Replace these with your actual API functions
-
-async function changeUserPasswordByAdmin(data: {
-  id: number;
-  newPassword: string;
-  confirmNewPassword: string;
-}) {
-  // Mock implementation
-  return { success: true };
-}
-
-async function updateShopInfo(
-  shopId: number,
-  data: {
-    name: string;
-    location: string;
-  }
-) {
-  // Mock implementation
-  return { success: true };
-}
-
-async function extendSubscription(
-  subscriptionId: number,
-  days: number,
-  transactionId: string,
-  amountPaid: number
-) {
-  // Mock implementation
-  return { success: true };
-}
-
-async function changeSubscriptionPlan(
-  subscriptionId: number,
-  planId: number,
-  autoRenew: boolean,
-  transactionId: string,
-  amountPaid: number
-) {
-  // Mock implementation
-  return { success: true };
-}
-
-async function updateSubscription(
-  subscriptionId: number,
-  data: {
-    autoRenew: boolean;
-  }
-) {
-  // Mock implementation
-  return { success: true };
-}

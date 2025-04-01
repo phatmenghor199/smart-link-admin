@@ -203,6 +203,92 @@ export async function fetchUserById({ userId }: { userId: number }) {
 }
 
 /**
+ * Extend an existing subscription
+ */
+export async function extendSubscription(data: {
+  userId: number;
+  transactionId: string;
+  amountPaid: number;
+  notes?: string;
+}) {
+  try {
+    const response = await axiosClientWithAuth.post(
+      "/v1/subscriptions/renew",
+      data
+    );
+    return {
+      success: true,
+      data: response.data.data,
+      message: "Subscription extended successfully",
+    };
+  } catch (error: any) {
+    console.error("Error extending subscription:", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to extend subscription",
+    };
+  }
+}
+
+/**
+ * Change subscription plan
+ */
+export async function changePlan(data: {
+  userId: number;
+  newPlanId: number;
+  transactionId: string;
+  amountPaid: number;
+  notes?: string;
+}) {
+  try {
+    const response = await axiosClientWithAuth.post(
+      "/v1/subscriptions/change-plan",
+      data
+    );
+    return {
+      success: true,
+      data: response.data.data,
+      message: "Plan changed successfully",
+    };
+  } catch (error: any) {
+    console.error("Error changing plan:", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to change plan",
+    };
+  }
+}
+
+/**
+ * Cancel subscription
+ */
+export async function cancelSubscription(userId: number, reason: string) {
+  try {
+    const response = await axiosClientWithAuth.post(
+      "/v1/subscriptions/cancel",
+      null,
+      {
+        params: {
+          userId,
+          reason,
+        },
+      }
+    );
+    return {
+      success: true,
+      data: response.data.data,
+      message: "Subscription cancelled successfully",
+    };
+  } catch (error: any) {
+    console.error("Error cancelling subscription:", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to cancel subscription",
+    };
+  }
+}
+
+/**
  * Comprehensive user creation process
  */
 export async function createUserProcess(userData: {
