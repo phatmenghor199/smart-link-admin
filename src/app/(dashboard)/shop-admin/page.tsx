@@ -254,7 +254,7 @@ export default function UsersPage() {
                       <TableCell>
                         {user.activeSubscription?.daysRemaining ?? "N/A"}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-start">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -264,13 +264,15 @@ export default function UsersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onSelect={() => router.push(`/users/${user.id}`)}
+                              onSelect={() =>
+                                router.push(`/shop-admin/${user.id}`)
+                              }
                             >
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() =>
-                                router.push(`/users/${user.id}/edit`)
+                                router.push(`/shop-admin/${user.id}/edit`)
                               }
                             >
                               <Edit className="mr-2 h-4 w-4" /> Edit

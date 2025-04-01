@@ -1,6 +1,3 @@
-// src/services/users.service.ts
-
-import { UserRole, UserStatus } from "@/constants/enum/user-enum";
 import { axiosClientWithAuth } from "@/utils/axios";
 
 // Interface for filter options
@@ -17,16 +14,18 @@ export async function getAllUserService(param: UserFilterOptions) {
   try {
     const response = await axiosClientWithAuth.post(`/v1/user`, param);
     return response.data.data;
-  } catch {
+  } catch (error: any) {
+    console.error("Error fetching all users:", error);
     return null;
   }
 }
 
 export async function getAllShopAdminService(param: UserFilterOptions) {
   try {
-    const response = await axiosClientWithAuth.post(`/v1/user`, param);
+    const response = await axiosClientWithAuth.post(`/v1/user/all`, param);
     return response.data.data;
-  } catch {
+  } catch (error: any) {
+    console.error("Error fetching all shop admins:", error);
     return null;
   }
 }
@@ -38,7 +37,8 @@ export async function fetchUserProfileByToken() {
   try {
     const response = await axiosClientWithAuth.get("/v1/user/token");
     return { success: true, data: response.data.data };
-  } catch {
+  } catch (error: any) {
+    console.error("Error fetching user profile:", error);
     return { success: false, data: null };
   }
 }
@@ -61,17 +61,75 @@ export async function registerUserApi(userData: RegisterUserRequest) {
       message: "User registered successfully",
     };
   } catch (error: any) {
-    // check error DuplicateNameException
+    console.error("Registration error:", error);
     if (error.response?.status === 409) {
       return {
         success: false,
         error: "Email already exists",
       };
     }
-    // check error InvalidEmailException
     return {
       success: false,
       error: error.response?.data?.message || "Registration failed",
+    };
+  }
+}
+
+/**
+ * Update user information (username, role, status)
+ */
+export async function updateUserInfo(
+  userId: number,
+  userData: {
+    username: string;
+    role: string;
+    status: string;
+  }
+) {
+  try {
+    await axiosClientWithAuth.put(`/v1/user/${userId}`, userData);
+    return {
+      success: true,
+      message: "User information updated successfully",
+    };
+  } catch (error: any) {
+    console.error(`Failed to update user with ID ${userId}:`, error);
+    if (error.response?.status === 409) {
+      return {
+        success: false,
+        error: "Email already exists",
+      };
+    }
+    return {
+      success: false,
+      error:
+        error.response?.data?.message || "Failed to update user information",
+    };
+  }
+}
+
+/**
+ * Change user password (admin only)
+ */
+export async function changeUserPasswordByAdmin(changePasswordData: {
+  id: number;
+  newPassword: string;
+  confirmNewPassword: string;
+}) {
+  try {
+    await axiosClientWithAuth.post(
+      "/v1/user/change-password-by-admin",
+      changePasswordData
+    );
+    return {
+      success: true,
+      message: "Password changed successfully",
+    };
+  } catch (error: any) {
+    console.error("Failed to change user password:", error);
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to change password",
     };
   }
 }
@@ -97,6 +155,7 @@ export async function createShopApi(
       message: "Shop created successfully",
     };
   } catch (error: any) {
+    console.error("Shop creation error:", error);
     return {
       success: false,
       error: error.response?.data?.message || "Shop creation failed",
@@ -137,7 +196,8 @@ export async function fetchUserById({ userId }: { userId: number }) {
   try {
     const response = await axiosClientWithAuth.get(`/v1/user/${userId}`);
     return response.data.data;
-  } catch {
+  } catch (error: any) {
+    console.error("Error fetching user by ID:", error);
     return null;
   }
 }
@@ -149,8 +209,8 @@ export async function createUserProcess(userData: {
   user: {
     email: string;
     password: string;
-    role: UserRole;
-    status: UserStatus;
+    role: string;
+    status: string;
   };
   shop: {
     name: string;
