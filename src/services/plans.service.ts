@@ -3,16 +3,13 @@ import {
   CreatePlanData,
   PlanFilterOptions,
   PlanModel,
-  PlanPaginationModel,
 } from "@/models/setting/plan-model";
 import { axiosClientWithAuth } from "@/utils/axios";
 
 /**
  * Fetch all plans with filtering options
  */
-export async function fetchAllPlans(
-  param: PlanFilterOptions = {}
-): Promise<PlanPaginationModel | null> {
+export async function fetchAllPlans(param: PlanFilterOptions = {}) {
   try {
     const response = await axiosClientWithAuth.post("/v1/plans/all", param);
     return response.data.data;

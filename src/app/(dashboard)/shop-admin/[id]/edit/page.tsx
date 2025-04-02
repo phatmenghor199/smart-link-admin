@@ -21,8 +21,6 @@ import {
   CreditCard,
   DollarSign,
   Calendar,
-  Ban,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,14 +39,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  cancelSubscription,
-  changePlan,
   changeUserPasswordByAdmin,
-  extendSubscription,
   fetchUserById,
   updateUserInfo,
 } from "@/services/users.service";
@@ -57,15 +51,14 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { UserProfileModel } from "@/models/user/user-profile.model";
-import { fetchAllPlans } from "@/services/plans.service";
-import { PlanModel } from "@/models/setting/plan-model";
 import { USER_STATUS } from "@/constants/key-page.ts/filter-user";
 import { UserStatus } from "@/constants/enum/user-enum";
-import { CancelSubscriptionDialog } from "@/components/users/cancel-subscription-dialog";
-import { ChangePlanDialog } from "@/components/users/change-plan-dialog";
-import { ExtendSubscriptionDialog } from "@/components/users/extend-subscription-dialog";
 import { Label } from "@/components/ui/label";
-import { updateShopInfoService } from "@/services/shop.service";
+import {
+  updateShopInfoService,
+  updateSubscriptionService,
+} from "@/services/shop.service";
+import { isEqual } from "lodash";
 
 // Define validation schemas for the different sections
 const userInfoSchema = z.object({
@@ -108,15 +101,13 @@ export default function EditShopAdminPage() {
   const params = useParams();
   const router = useRouter();
   const [user, setUser] = useState<UserProfileModel | null>(null);
-  const [availablePlans, setAvailablePlans] = useState<PlanModel[]>([]);
+  const [originalData, setOriginalData] = useState<FormData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [isExtendDialogOpen, setIsExtendDialogOpen] = useState(false);
-  const [isChangePlanDialogOpen, setIsChangePlanDialogOpen] = useState(false);
-  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState("userInfo");
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Form handling
   const {
@@ -125,7 +116,6 @@ export default function EditShopAdminPage() {
     formState: { errors },
     reset,
     watch,
-    setValue,
   } = useForm<FormData>({
     resolver: zodResolver(combinedSchema),
     defaultValues: {
@@ -150,7 +140,43 @@ export default function EditShopAdminPage() {
   });
 
   const watchPassword = watch("userInfo.password");
-  const watchPlanId = watch("subscriptionInfo.planId");
+  const watchFormValues = watch();
+
+  // Track form changes
+  useEffect(() => {
+    if (originalData) {
+      // Deep comparison to detect changes, ignoring password fields
+      const formValues = { ...watchFormValues };
+      const original = { ...originalData };
+
+      // Create comparison objects without password fields
+      const formForComparison = {
+        userInfo: {
+          id: formValues.userInfo.id,
+          email: formValues.userInfo.email,
+          status: formValues.userInfo.status,
+        },
+        shopInfo: formValues.shopInfo,
+        subscriptionInfo: formValues.subscriptionInfo,
+      };
+
+      const originalForComparison = {
+        userInfo: {
+          id: original.userInfo.id,
+          email: original.userInfo.email,
+          status: original.userInfo.status,
+        },
+        shopInfo: original.shopInfo,
+        subscriptionInfo: original.subscriptionInfo,
+      };
+
+      // Check for password field changes separately
+      const hasPasswordChanges = !!watchFormValues.userInfo.password;
+
+      const hasDataChanges = !isEqual(formForComparison, originalForComparison);
+      setHasChanges(hasDataChanges || hasPasswordChanges);
+    }
+  }, [watchFormValues, originalData]);
 
   const loadData = useCallback(async () => {
     try {
@@ -174,14 +200,8 @@ export default function EditShopAdminPage() {
 
       setUser(fetchedUser);
 
-      // Load available plans
-      const plans = await fetchAllPlans();
-      if (plans && plans.content) {
-        setAvailablePlans(plans.content);
-      }
-
-      // Reset form with fetched data
-      reset({
+      // Create initial form data
+      const initialData = {
         userInfo: {
           id: fetchedUser.id,
           email: fetchedUser.username,
@@ -204,7 +224,13 @@ export default function EditShopAdminPage() {
               amountPaid: fetchedUser.activeSubscription.amountPaid,
             }
           : undefined,
-      });
+      };
+
+      // Store original data for comparison
+      setOriginalData(initialData);
+
+      // Reset form with fetched data
+      reset(initialData);
     } catch (error) {
       console.error("Failed to fetch data:", error);
       setErrorMessage(
@@ -215,8 +241,6 @@ export default function EditShopAdminPage() {
       setIsLoading(false);
     }
   }, [params.id, reset]);
-
-  const selectedPlanId = watch("subscriptionInfo.planId");
 
   // Load user details and plans
   useEffect(() => {
@@ -237,24 +261,19 @@ export default function EditShopAdminPage() {
     window.history.pushState({}, "", url);
   }, [selectedTab]);
 
-  // Update amount paid when plan changes
-  useEffect(() => {
-    if (watchPlanId) {
-      const selectedPlan = availablePlans.find(
-        (plan) => plan.id === watchPlanId
-      );
-      if (selectedPlan) {
-        setValue("subscriptionInfo.amountPaid", selectedPlan.price);
-      }
-    }
-  }, [watchPlanId, availablePlans, setValue]);
-
   // Form submission handler
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
+      // If no changes, just return to detail page
+      if (!hasChanges) {
+        toast.info("No changes detected");
+        router.push(`/shop-admin/${data.userInfo.id}`);
+        return;
+      }
+
       // Validate password match if provided
       if (
         data.userInfo.password &&
@@ -265,17 +284,25 @@ export default function EditShopAdminPage() {
         return;
       }
 
-      // 1. Update user info
-      const userUpdateResult = await updateUserInfo(data.userInfo.id, {
-        username: data.userInfo.email,
-        role: "SHOP_ADMIN", // Keep the role as SHOP_ADMIN
-        status: data.userInfo.status,
-      });
+      // Check what needs to be updated
+      const originalUserInfo = originalData?.userInfo;
+      const hasUserInfoChanges =
+        originalUserInfo?.email !== data.userInfo.email ||
+        originalUserInfo?.status !== data.userInfo.status;
 
-      if (!userUpdateResult.success) {
-        throw new Error(
-          userUpdateResult.error || "Failed to update user information"
-        );
+      // 1. Update user info if changed
+      if (hasUserInfoChanges) {
+        const userUpdateResult = await updateUserInfo(data.userInfo.id, {
+          username: data.userInfo.email,
+          role: "SHOP_ADMIN", // Keep the role as SHOP_ADMIN
+          status: data.userInfo.status,
+        });
+
+        if (!userUpdateResult.success) {
+          throw new Error(
+            userUpdateResult.error || "Failed to update user information"
+          );
+        }
       }
 
       // 2. If password is provided, change the password
@@ -294,17 +321,52 @@ export default function EditShopAdminPage() {
         }
       }
 
-      // 3. Update shop info if provided
+      // 3. Update shop info if provided and changed
       if (data.shopInfo && user?.shop) {
-        const shopUpdateResult = await updateShopInfoService(
-          user.shop.id,
-          data.shopInfo
-        );
+        const originalShopInfo = originalData?.shopInfo;
+        const hasShopChanges =
+          originalShopInfo?.name !== data.shopInfo.name ||
+          originalShopInfo?.location !== data.shopInfo.location;
 
-        if (!shopUpdateResult.success) {
-          throw new Error(
-            shopUpdateResult.error || "Failed to update shop information"
+        if (hasShopChanges) {
+          const shopUpdateResult = await updateShopInfoService(
+            user.shop.id,
+            data.shopInfo
           );
+
+          if (!shopUpdateResult.success) {
+            throw new Error(
+              shopUpdateResult.error || "Failed to update shop information"
+            );
+          }
+        }
+      }
+
+      // 4. Update subscription info if changed
+      if (data.subscriptionInfo && user?.activeSubscription) {
+        const originalSubscriptionInfo = originalData?.subscriptionInfo;
+        const hasSubscriptionChanges =
+          originalSubscriptionInfo?.autoRenew !==
+            data.subscriptionInfo.autoRenew ||
+          originalSubscriptionInfo?.amountPaid !==
+            data.subscriptionInfo.amountPaid;
+
+        if (hasSubscriptionChanges) {
+          const subscriptionUpdateResult = await updateSubscriptionService({
+            userId: data.userInfo.id,
+            transactionId:
+              data.subscriptionInfo.transactionId ||
+              `UPDATE-${data.userInfo.id}-${Date.now()}`,
+            autoRenew: data.subscriptionInfo.autoRenew,
+            amountPaid: data.subscriptionInfo.amountPaid || 0,
+          });
+
+          if (!subscriptionUpdateResult.success) {
+            throw new Error(
+              subscriptionUpdateResult.error ||
+                "Failed to update subscription information"
+            );
+          }
         }
       }
 
@@ -321,89 +383,7 @@ export default function EditShopAdminPage() {
     }
   };
 
-  // Handle subscription cancellation
-  const handleCancelSubscription = async (reason: string) => {
-    if (!user) return;
-
-    try {
-      const result = await cancelSubscription(user.id, reason);
-
-      if (result.success) {
-        toast.success("Subscription cancelled successfully");
-        setIsCancelDialogOpen(false);
-
-        // Redirect to the user details page after cancellation
-        router.push(`/shop-admin/${user.id}`);
-      } else {
-        toast.error(result.message || "Failed to cancel subscription");
-      }
-    } catch (error) {
-      console.error("Error cancelling subscription:", error);
-      toast.error("An unexpected error occurred while cancelling subscription");
-    }
-  };
-
-  const handleExtendSubscription = async (data: {
-    days: number;
-    transactionId?: string;
-    amountPaid: number;
-    notes?: string;
-  }) => {
-    if (!user) return;
-
-    try {
-      const result = await extendSubscription({
-        userId: user.id,
-        transactionId: data.transactionId || `EXT-${user.id}-${Date.now()}`,
-        amountPaid: data.amountPaid,
-        notes: data.notes,
-      });
-
-      if (result.success) {
-        toast.success("Subscription extended successfully");
-        setIsExtendDialogOpen(false);
-        // Reload user data to show updated subscription information
-        loadData();
-      } else {
-        toast.error(result.message || "Failed to extend subscription");
-      }
-    } catch (error) {
-      console.error("Error extending subscription:", error);
-      toast.error("An unexpected error occurred");
-    }
-  };
-
-  const handleChangePlan = async (data: {
-    newPlanId: number;
-    transactionId?: string;
-    amountPaid: number;
-    notes?: string;
-  }) => {
-    if (!user) return;
-
-    try {
-      const result = await changePlan({
-        userId: user.id,
-        newPlanId: data.newPlanId,
-        transactionId: data.transactionId || `CHANGE-${user.id}-${Date.now()}`,
-        amountPaid: data.amountPaid,
-        notes: data.notes,
-      });
-
-      if (result.success) {
-        toast.success("Plan changed successfully");
-        setIsChangePlanDialogOpen(false);
-        // Reload user data to show updated subscription information
-        loadData();
-      } else {
-        toast.error(result.message || "Failed to change plan");
-      }
-    } catch (error) {
-      console.error("Error changing plan:", error);
-      toast.error("An unexpected error occurred");
-    }
-  };
-
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -432,11 +412,6 @@ export default function EditShopAdminPage() {
       </div>
     );
   }
-
-  // Get the selected plan details
-  const selectedPlan = selectedPlanId
-    ? availablePlans.find((plan) => plan.id === selectedPlanId)
-    : null;
 
   return (
     <motion.div
@@ -759,9 +734,7 @@ export default function EditShopAdminPage() {
                   <Package className="h-5 w-5 text-primary" />
                   Subscription Details
                 </CardTitle>
-                <CardDescription>
-                  Update or extend the subscription plan
-                </CardDescription>
+                <CardDescription>View subscription information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {user.activeSubscription ? (
@@ -782,17 +755,11 @@ export default function EditShopAdminPage() {
                           <span className="text-muted-foreground block">
                             Status:
                           </span>
-                          <Badge
-                            variant={
-                              user.activeSubscription.daysRemaining > 0
-                                ? "default"
-                                : "destructive"
-                            }
-                          >
+                          <span>
                             {user.activeSubscription.daysRemaining > 0
                               ? "Active"
                               : "Expired"}
-                          </Badge>
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground block">
@@ -837,34 +804,6 @@ export default function EditShopAdminPage() {
 
                     <Separator />
 
-                    <div className="flex justify-between space-x-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsExtendDialogOpen(true)}
-                      >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Extend Subscription
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => setIsChangePlanDialogOpen(true)}
-                      >
-                        <Package className="mr-2 h-4 w-4" />
-                        Change Plan
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={() => setIsCancelDialogOpen(true)}
-                      >
-                        <Ban className="mr-2 h-4 w-4" />
-                        Cancel Subscription
-                      </Button>
-                    </div>
-
-                    <Separator />
-
                     <div className="space-y-4">
                       <h4 className="font-medium">Subscription Options</h4>
                       <div className="grid md:grid-cols-2 gap-6">
@@ -897,6 +836,12 @@ export default function EditShopAdminPage() {
                               />
                             )}
                           />
+                          {errors.subscriptionInfo?.amountPaid && (
+                            <p className="text-sm text-destructive flex items-center gap-1">
+                              <AlertCircle className="h-4 w-4" />
+                              {errors.subscriptionInfo.amountPaid.message?.toString()}
+                            </p>
+                          )}
                         </div>
 
                         {/* Transaction ID */}
@@ -914,7 +859,7 @@ export default function EditShopAdminPage() {
                             render={({ field }) => (
                               <Input
                                 {...field}
-                                placeholder="Transaction ID for the change or extension"
+                                placeholder="Transaction ID"
                                 disabled={isSubmitting}
                               />
                             )}
@@ -965,284 +910,12 @@ export default function EditShopAdminPage() {
                     </div>
                   </>
                 ) : (
-                  <div>
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        No active subscription found for this shop admin.
-                      </AlertDescription>
-                    </Alert>
-
-                    {/* Subscription Details Card */}
-                    <Card className="mt-4">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-2">
-                          <Package className="h-5 w-5 text-primary" />
-                          Subscription Details
-                        </CardTitle>
-                        <CardDescription>
-                          Select a subscription plan for the shop
-                        </CardDescription>
-                      </CardHeader>
-
-                      <CardContent className="space-y-4">
-                        {availablePlans.length === 0 ? (
-                          <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>
-                              No subscription plans available
-                            </AlertTitle>
-                            <AlertDescription>
-                              Unable to load subscription plans. Please create
-                              or activate plans first.
-                            </AlertDescription>
-                          </Alert>
-                        ) : (
-                          <div className="space-y-6">
-                            <div className="grid md:grid-cols-2 gap-6">
-                              {/* Plan Selection */}
-                              <div className="space-y-2">
-                                <Label htmlFor="subscriptionInfo.planId">
-                                  <Package className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  Select Plan
-                                </Label>
-                                <Controller
-                                  name="subscriptionInfo.planId"
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select
-                                      value={
-                                        field.value !== undefined
-                                          ? field.value.toString()
-                                          : undefined
-                                      }
-                                      onValueChange={(value) => {
-                                        field.onChange(Number(value));
-                                      }}
-                                      disabled={isSubmitting}
-                                    >
-                                      <SelectTrigger
-                                        id="planId"
-                                        className="w-full"
-                                      >
-                                        <SelectValue placeholder="Choose a subscription plan" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availablePlans.map((plan) => (
-                                          <SelectItem
-                                            key={plan.id}
-                                            value={plan.id.toString()}
-                                          >
-                                            <div className="flex items-center justify-between w-full pr-6">
-                                              <span>{plan.name}</span>
-                                              <span className="text-muted-foreground ml-2">
-                                                ${plan.price}/month
-                                              </span>
-                                            </div>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                                {errors.subscriptionInfo?.planId && (
-                                  <p className="text-sm text-destructive flex items-center gap-1">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {errors.subscriptionInfo?.planId.message?.toString()}
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* Auto Renew Selection */}
-                              <div className="space-y-2">
-                                <Label htmlFor="subscriptionInfo.autoRenew">
-                                  <ShieldCheck className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  Auto Renew
-                                </Label>
-                                <Controller
-                                  name="subscriptionInfo.autoRenew"
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select
-                                      value={field.value ? "true" : "false"}
-                                      onValueChange={(value) => {
-                                        field.onChange(value === "true");
-                                      }}
-                                      disabled={isSubmitting}
-                                    >
-                                      <SelectTrigger id="autoRenew">
-                                        <SelectValue placeholder="Auto Renew" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="true">
-                                          Enabled (Recommended)
-                                        </SelectItem>
-                                        <SelectItem value="false">
-                                          Disabled
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                                {errors.subscriptionInfo?.autoRenew && (
-                                  <p className="text-sm text-destructive flex items-center gap-1">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {errors.subscriptionInfo?.autoRenew.message?.toString()}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Transaction ID and Amount Paid */}
-                            <div className="grid md:grid-cols-2 gap-6">
-                              {/* Transaction ID */}
-                              <div className="space-y-2">
-                                <Label htmlFor="subscriptionInfo.transactionId">
-                                  <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  Transaction ID
-                                </Label>
-                                <Controller
-                                  name="subscriptionInfo.transactionId"
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Input
-                                      id="subscriptionInfo.transactionId"
-                                      {...field}
-                                      placeholder="Transaction ID"
-                                      disabled={isSubmitting}
-                                      aria-invalid={
-                                        !!errors.subscriptionInfo?.transactionId
-                                      }
-                                    />
-                                  )}
-                                />
-                                {errors.subscriptionInfo?.transactionId && (
-                                  <p className="text-sm text-destructive flex items-center gap-1">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {errors.subscriptionInfo?.transactionId.message?.toString()}
-                                  </p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  A unique identifier for this transaction
-                                </p>
-                              </div>
-
-                              {/* Amount Paid */}
-                              <div className="space-y-2">
-                                <Label htmlFor="subscriptionInfo.amountPaid">
-                                  <DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  Amount Paid
-                                </Label>
-                                <Controller
-                                  name="subscriptionInfo.amountPaid"
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Input
-                                      id="amountPaid"
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      {...field}
-                                      value={field.value?.toString() || "0"}
-                                      onChange={(e) =>
-                                        field.onChange(
-                                          parseFloat(e.target.value) || 0
-                                        )
-                                      }
-                                      placeholder="0.00"
-                                      disabled={isSubmitting}
-                                      aria-invalid={
-                                        !!errors.subscriptionInfo?.amountPaid
-                                      }
-                                    />
-                                  )}
-                                />
-                                {errors.subscriptionInfo?.amountPaid && (
-                                  <p className="text-sm text-destructive flex items-center gap-1">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {errors.subscriptionInfo?.amountPaid.message?.toString()}
-                                  </p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  Amount paid for this subscription
-                                  (automatically set to plan price)
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Plan Details - Show details of selected plan */}
-                            {selectedPlan && (
-                              <div className="mt-4 p-4 bg-muted/40 rounded-lg border">
-                                <h4 className="font-medium mb-2">
-                                  Plan Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                      Name:
-                                    </span>
-                                    <span className="font-medium">
-                                      {selectedPlan.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                      Price:
-                                    </span>
-                                    <span className="font-medium">
-                                      ${selectedPlan.price}/month
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                      Duration:
-                                    </span>
-                                    <span className="font-medium">
-                                      {selectedPlan.durationDays} days
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                      Description:
-                                    </span>
-                                    <span className="text-sm max-w-xs text-right">
-                                      {selectedPlan.description}
-                                    </span>
-                                  </div>
-                                  <div className="pt-2 flex flex-wrap gap-2 justify-end">
-                                    {selectedPlan.allowBanners && (
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-primary/10"
-                                      >
-                                        Banners
-                                      </Badge>
-                                    )}
-                                    {selectedPlan.allowPromotions && (
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-primary/10"
-                                      >
-                                        Promotions
-                                      </Badge>
-                                    )}
-                                    {selectedPlan.allowDelivery && (
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-primary/10"
-                                      >
-                                        Delivery
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No active subscription found for this shop admin.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
             </Card>
@@ -1259,7 +932,11 @@ export default function EditShopAdminPage() {
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !hasChanges}
+            className={!hasChanges ? "opacity-70" : ""}
+          >
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1268,42 +945,12 @@ export default function EditShopAdminPage() {
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Save Changes
+                {hasChanges ? "Save Changes" : "No Changes"}
               </>
             )}
           </Button>
         </div>
       </form>
-
-      {/* Extend Subscription Dialog */}
-      {user.hasActiveSubscription && user.activeSubscription && (
-        <ExtendSubscriptionDialog
-          user={user}
-          isOpen={isExtendDialogOpen}
-          onClose={() => setIsExtendDialogOpen(false)}
-          onSubmit={handleExtendSubscription}
-        />
-      )}
-
-      {/* Change Plan Dialog */}
-      {user.hasActiveSubscription && user.activeSubscription && (
-        <ChangePlanDialog
-          user={user}
-          isOpen={isChangePlanDialogOpen}
-          onClose={() => setIsChangePlanDialogOpen(false)}
-          onSubmit={handleChangePlan}
-        />
-      )}
-
-      {/* Cancel Subscription Dialog */}
-      {user.activeSubscription && (
-        <CancelSubscriptionDialog
-          user={user}
-          isOpen={isCancelDialogOpen}
-          onClose={() => setIsCancelDialogOpen(false)}
-          onSubmit={handleCancelSubscription}
-        />
-      )}
     </motion.div>
   );
 }

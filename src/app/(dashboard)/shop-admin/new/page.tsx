@@ -52,6 +52,7 @@ import { USER_ROLES, USER_STATUS } from "@/constants/key-page.ts/filter-user";
 import { UserStatus } from "@/constants/enum/user-enum";
 import { createUserProcess } from "@/services/users.service";
 import { Label } from "@/components/ui/label";
+import { TRANSACTION_ID } from "@/utils/tran/tran-saction";
 
 // Create validation schema
 const userCreationSchema = z
@@ -224,9 +225,7 @@ export default function CreateShopAdminPage() {
       }
 
       // Generate transaction ID if not provided
-      const transactionId =
-        data.transactionId ||
-        `TRANS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const transactionId = data.transactionId || TRANSACTION_ID;
 
       const userCreationData = {
         user: {

@@ -41,14 +41,14 @@ const sidebarItems = [
     icon: <History className="h-5 w-5" />,
   },
   {
-    title: "Profile",
-    href: "/profile",
-    icon: <User className="h-5 w-5" />,
-  },
-  {
     title: "Plans",
     href: "/plans",
     icon: <Package className="h-5 w-5" />,
+  },
+  {
+    title: "Profile",
+    href: "/profile",
+    icon: <User className="h-5 w-5" />,
   },
   {
     title: "Settings",

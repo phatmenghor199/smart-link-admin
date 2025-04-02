@@ -11,7 +11,7 @@ export async function updateShopInfoService(
   }
 ) {
   try {
-    await axiosClientWithAuth.put(`/api/v1/shop/${shopId}`, shopData);
+    await axiosClientWithAuth.put(`/v1/shop/${shopId}`, shopData);
     return {
       success: true,
       message: "Shop information updated successfully",
@@ -28,6 +28,34 @@ export async function updateShopInfoService(
       success: false,
       error:
         error.response?.data?.message || "Failed to update shop information",
+    };
+  }
+}
+
+/**
+ * Update subscription settings
+ */
+export async function updateSubscriptionService(data: {
+  userId: number;
+  transactionId: string;
+  autoRenew: boolean;
+  amountPaid: number;
+}) {
+  try {
+    const response = await axiosClientWithAuth.put(
+      "/v1/subscriptions/update",
+      data
+    );
+    return {
+      success: true,
+      data: response.data.data,
+      message: "Subscription updated successfully",
+    };
+  } catch (error: any) {
+    console.error("Error updating subscription:", error);
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to update subscription",
     };
   }
 }
