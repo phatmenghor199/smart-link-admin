@@ -48,6 +48,7 @@ import {
   cancelSubscription,
   changePlan,
   changeUserPasswordByAdmin,
+  createSubscriptionApi,
   extendSubscription,
   fetchUserById,
   updateUserInfo,
@@ -304,6 +305,34 @@ export default function EditShopAdminPage() {
         if (!shopUpdateResult.success) {
           throw new Error(
             shopUpdateResult.error || "Failed to update shop information"
+          );
+        }
+      }
+
+      // 4. Handle subscription - Create new subscription if none exists
+      if (
+        user &&
+        !user.hasActiveSubscription &&
+        data.subscriptionInfo &&
+        data.subscriptionInfo.planId
+      ) {
+        const subscriptionData = {
+          userId: data.userInfo.id,
+          planId: data.subscriptionInfo.planId,
+          transactionId:
+            data.subscriptionInfo.transactionId ||
+            `TRANS-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          amountPaid: data.subscriptionInfo.amountPaid || 0,
+          autoRenew: data.subscriptionInfo.autoRenew || false,
+        };
+
+        const subscriptionCreateResult = await createSubscriptionApi(
+          subscriptionData
+        );
+
+        if (!subscriptionCreateResult.success) {
+          throw new Error(
+            subscriptionCreateResult.error || "Failed to create subscription"
           );
         }
       }

@@ -305,6 +305,8 @@ export async function createUserProcess(userData: {
   subscription: {
     planId: number;
     autoRenew: boolean;
+    transactionId: string;
+    amountPaid: number;
   };
 }) {
   try {
@@ -328,8 +330,6 @@ export async function createUserProcess(userData: {
     const subscriptionCreation = await createSubscriptionApi({
       userId,
       ...userData.subscription,
-      transactionId: `TRANS-${userId}-${Date.now()}`,
-      amountPaid: 0, // Default to 0
     });
 
     if (!subscriptionCreation.success) {
